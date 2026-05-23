@@ -36,7 +36,8 @@ import sys
 if "google.colab" in sys.modules:
     subprocess.check_call(
         [sys.executable, "-m", "pip", "install", "-q",
-         "duckdb", "geopandas", "pyogrio", "lonboard", "shapely", "pmtiles", "pyarrow"],
+         "duckdb", "geopandas", "pyogrio", "lonboard", "shapely", "pmtiles", "pyarrow",
+         "xarray", "zarr", "s3fs", "scipy"],
     )
 ```
 
@@ -197,6 +198,57 @@ Open the whole Austria buildings in the official viewer, the browser streams jus
 | GeoParquet   | Bbox covering column, row-group pruning | Column-aware analytics, DataFrame workflows, lonboard    |
 | FlatGeobuf   | Packed R-tree at file head      | Bbox feature reads, GIS tools (QGIS, ogr2ogr, JS readers) |
 | PMTiles      | Z/X/Y directory + tile offsets  | Browser map rendering at any zoom, no server             |
+
+## Bonus: the same trick on ML embeddings
+
+[Alpha Earth Foundations](https://geoembeddings.org/tutorials/xarray_geospatial_embeddings_intro.html) publishes 64-dimensional satellite embeddings as a public **Zarr** on Source Cooperative S3. Same cloud-native pattern as everything above: `xr.open_zarr` opens it without download, slicing fetches only the chunks for our AOI.
+
+```{python}
+import numpy as np
+import xarray as xr
+from scipy.cluster.vq import kmeans2
+
+AEF = "s3://us-west-2.opendata.source.coop/tge-labs/aef-mosaic/"
+emb = xr.open_zarr(AEF, storage_options={"anon": True}, consolidated=False)["embeddings"]
+print(emb)
+```
+
+Slice to the Salzburg AOI for the most recent year.
+
+```{python}
+salzburg_emb = (
+    emb.sel(time=2024, x=slice(xmin, xmax), y=slice(ymax, ymin))
+    .transpose("y", "x", "band")
+    .isel(y=slice(None, None, 2), x=slice(None, None, 2))
+    .load()
+)
+print(f"dims = {salzburg_emb.dims}, shape = {salzburg_emb.shape}")
+```
+
+Cluster the per-pixel embedding vectors into 5 groups, then map each pixel back to its (lon, lat) and colour by cluster on lonboard.
+
+```{python}
+flat = salzburg_emb.values.reshape(-1, salzburg_emb.shape[-1]).astype(np.float32)
+_, labels = kmeans2(flat, 5, seed=0, minit="++")
+
+ys, xs = np.meshgrid(salzburg_emb.y.values, salzburg_emb.x.values, indexing="ij")
+pixels = gpd.GeoDataFrame(
+    {"cluster": labels},
+    geometry=gpd.points_from_xy(xs.ravel(), ys.ravel()),
+    crs="EPSG:4326",
+)
+
+palette = np.array([
+    [230, 25, 75], [60, 180, 75], [255, 195, 0], [0, 130, 200], [245, 130, 48],
+], dtype=np.uint8)
+Map([
+    ScatterplotLayer.from_geopandas(
+        pixels,
+        get_fill_color=palette[pixels.cluster.values],
+        radius_min_pixels=3,
+    ),
+])
+```
 
 ## References
 
