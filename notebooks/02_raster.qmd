@@ -37,14 +37,14 @@ if "google.colab" in sys.modules:
     subprocess.check_call(
         [sys.executable, "-m", "pip", "install", "-q",
          "pystac-client", "rioxarray", "xarray", "zarr>=3",
-         "virtughan", "matplotlib", "pyproj", "shapely"],
+         "virtughan", "matplotlib", "pyproj", "shapely",
+         "pandas", "aiohttp", "fsspec"],
     )
 ```
 
 ```{python}
 %matplotlib inline
 import json
-import re
 import time
 import urllib.request
 from pathlib import Path
@@ -55,6 +55,7 @@ import pandas as pd
 import pyproj
 import rioxarray  # noqa: F401  registers the .rio accessor
 import xarray as xr
+from IPython.display import Image, display
 from pystac_client import Client
 from shapely.geometry import box
 from shapely.ops import transform as shp_transform
@@ -86,7 +87,7 @@ def plot_indices(ndvi, ndwi, title):
     axes[1].set_title(f"NDWI, {title}")
     axes[1].set_aspect("equal")
     fig.tight_layout()
-    plt.show()
+    display(fig)
     plt.close(fig)
 ```
 
@@ -224,7 +225,7 @@ plot_indices(ndvi_vg, ndwi_vg, f"VirtuGhan median, {VG_START} to {VG_END}")
 
 ## 5. Datacube, NDVI time series with xarray + COG
 
-For a seasonal trend we don't want a single scene, we want every clear scene in the window stacked along a `time` axis. Below: search L2A for the Salzburg growing season, build a `(time, y, x)` cube by lazy-opening each scene's COG bands, take the spatial mean per date, plot the trend.
+For a seasonal trend we don't want a single scene, we want every clear scene in the window stacked along a `time` axis. Below: search L2A for the Salzburg growing season, build a `(time, y, x)` cube by lazy-opening each scene's COG bands, take the spatial median per date, fit a linear trend, and plot in the same style as the VirtuGhan chart further down so the two are directly comparable.
 
 ```{python}
 TS_START, TS_END = "2025-05-01", "2025-09-30"
@@ -251,14 +252,25 @@ print(f"NDVI cube shape = {ndvi_cube.shape} (time, y, x)")
 ```
 
 ```{python}
-ndvi_trend_xr = ndvi_cube.mean(["x", "y"], skipna=True)
-fig, ax = plt.subplots(figsize=(10, 4))
-ndvi_trend_xr.plot(ax=ax, marker="o", color="#2c7a3d")
-ax.set_title("Mean NDVI over Salzburg AOI, xarray cube, Sentinel-2 L2A (COG)")
-ax.set_ylabel("Mean NDVI")
-ax.set_xlabel("")
+ndvi_median_xr = ndvi_cube.median(["x", "y"], skipna=True)
+dates = pd.to_datetime(ndvi_median_xr.time.values)
+values = ndvi_median_xr.values
+dates_numeric = np.arange(len(dates))
+slope, intercept = np.polyfit(dates_numeric, values, 1)
+trend_line = slope * dates_numeric + intercept
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(dates, values, marker="o", color="#1f77b4", label="Median Value")
+ax.plot(dates, trend_line, "--", color="red", label="Trend Line")
+ax.set_title("Median Value Over Time")
+ax.set_xlabel("Date")
+ax.set_ylabel("Median Value")
+ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter("%Y%m%d"))
+ax.tick_params(axis="x", rotation=45)
 ax.grid(True, alpha=0.3)
-plt.show()
+ax.legend(loc="upper left")
+fig.tight_layout()
+display(fig)
 plt.close(fig)
 ```
 
@@ -288,25 +300,10 @@ proc.compute()
 print(f"VirtuGhan timeseries: {time.perf_counter() - t0:.2f} s")
 ```
 
-```{python}
-records = []
-for tif in sorted(vg_ts_dir.glob("*_result.tif")):
-    m = re.search(r"(\d{8})T(\d{6})", tif.name)
-    if not m:
-        continue
-    date = pd.to_datetime(m.group(1) + m.group(2), format="%Y%m%d%H%M%S")
-    arr = rioxarray.open_rasterio(tif, masked=True).squeeze(drop=True).values
-    records.append((date, float(np.nanmean(arr))))
+VirtuGhan also writes `values_over_time.png` next to the per-date GeoTIFFs, with the spatial-median NDVI and a fitted trend line. No extra code needed, just display it.
 
-ndvi_trend_vg = pd.DataFrame(records, columns=["date", "ndvi_mean"]).sort_values("date")
-fig, ax = plt.subplots(figsize=(10, 4))
-ax.plot(ndvi_trend_vg["date"], ndvi_trend_vg["ndvi_mean"], marker="o", color="#0b6e4f")
-ax.set_title("Mean NDVI over Salzburg AOI, VirtuGhan, Sentinel-2 L2A")
-ax.set_ylabel("Mean NDVI")
-ax.set_xlabel("")
-ax.grid(True, alpha=0.3)
-plt.show()
-plt.close(fig)
+```{python}
+Image(filename=str(vg_ts_dir / "values_over_time.png"))
 ```
 
 ## References
