@@ -23,7 +23,7 @@ Cloud Native Geospatial and File Formats. The theory, the format landscape, COG 
 You run these yourself, in the browser via Colab or locally with `uv`.
 
 - [**01 · Vector**](notebooks/01_vector.qmd): filter Overture's planet-scale GeoParquet on S3 with DuckDB; bbox-stream the Austria buildings dataset (1.4 GB on Hugging Face) via GeoParquet, FlatGeobuf, and PMTiles; visualise with `lonboard`.
-- **02 · Raster**: work in progress.
+- [**02 · Raster**](notebooks/02_raster.qmd): pick a clean Sentinel-2 scene from STAC, compute NDVI and NDWI three ways for the same AOI (COG via `rioxarray`, Zarr via the EOPF Sample Service, on-the-fly via `VirtuGhan`); then build two NDVI time-series datacubes over the 2025 growing season (xarray + COG cube, VirtuGhan timeseries) and plot the seasonal trend.
 
 ## Running the notebooks
 

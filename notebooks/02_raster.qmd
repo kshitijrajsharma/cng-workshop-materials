@@ -87,6 +87,7 @@ def plot_indices(ndvi, ndwi, title):
     axes[1].set_aspect("equal")
     fig.tight_layout()
     plt.show()
+    plt.close(fig)
 ```
 
 ## 1. Pick a clean Sentinel-2 scene over Salzburg (STAC)
@@ -258,6 +259,7 @@ ax.set_ylabel("Mean NDVI")
 ax.set_xlabel("")
 ax.grid(True, alpha=0.3)
 plt.show()
+plt.close(fig)
 ```
 
 ## 6. Datacube, NDVI time series with VirtuGhan
@@ -281,7 +283,6 @@ proc = VirtughanProcessor(
     timeseries=True,
     output_dir=str(vg_ts_dir),
     smart_filter=False,
-    workers=4,
 )
 proc.compute()
 print(f"VirtuGhan timeseries: {time.perf_counter() - t0:.2f} s")
@@ -305,6 +306,7 @@ ax.set_ylabel("Mean NDVI")
 ax.set_xlabel("")
 ax.grid(True, alpha=0.3)
 plt.show()
+plt.close(fig)
 ```
 
 ## References

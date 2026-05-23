@@ -18,10 +18,12 @@ website:
         text: Home
       - href: slides/talk1.qmd
         text: Slides
-      - href: notebooks/01_vector.qmd
-        text: Vector
-      - href: notebooks/02_raster.qmd
-        text: Raster
+      - text: Notebooks
+        menu:
+          - href: notebooks/01_vector.qmd
+            text: Vector
+          - href: notebooks/02_raster.qmd
+            text: Raster
     right:
       - icon: github
         href: https://github.com/kshitijrajsharma
