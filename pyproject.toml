@@ -1,0 +1,41 @@
+[project]
+name = "cng-workshop-materials"
+version = "0.1.0"
+description = "Cloud Native Geospatial workshop, CIVIS Salzburg 2026"
+authors = [{ name = "Kshitij Raj Sharma", email = "krschap@proton.me" }]
+requires-python = ">=3.13"
+dependencies = [
+    "duckdb>=1.5.3",
+    "fsspec>=2026.4.0",
+    "geopandas>=1.1.3",
+    "ipykernel>=7.2.0",
+    "jupyter>=1.1.1",
+    "lonboard>=0.16.0",
+    "matplotlib>=3.10.9",
+    "pyarrow>=24.0.0",
+    "pyogrio>=0.12.1",
+    "pystac-client>=0.9.0",
+    "rasterio>=1.5.0",
+    "rioxarray>=0.22.0",
+    "shapely>=2.1.2",
+    "virtughan>=1.0.2",
+    "xarray>=2026.4.0",
+    "xarray-eopf>=0.2.8",
+    "zarr>=2.18.7",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.14",
+    "ty>=0.0.39",
+]
