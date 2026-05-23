@@ -1,0 +1,197 @@
+---
+title: "Raster"
+subtitle: "Cloud-native access patterns over Salzburg"
+author: "Kshitij Raj Sharma"
+date: today
+draft: true
+format:
+  html:
+    toc: true
+    code-fold: false
+    code-tools: true
+execute:
+  echo: true
+  warning: false
+  cache: false
+jupyter: python3
+---
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kshitijrajsharma/cng-workshop-materials/blob/master/notebooks/02_raster.ipynb)
+[![Download .ipynb](https://img.shields.io/badge/Download-.ipynb-F37626?logo=jupyter&logoColor=white)](https://github.com/kshitijrajsharma/cng-workshop-materials/raw/master/notebooks/02_raster.ipynb)
+[![Repo](https://img.shields.io/badge/Source-GitHub-181717?logo=github&logoColor=white)](https://github.com/kshitijrajsharma/cng-workshop-materials)
+
+```{python}
+#| eval: false
+import subprocess
+import sys
+
+if "google.colab" in sys.modules:
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", "-q",
+         "pystac-client", "rioxarray", "xarray", "zarr",
+         "xarray-eopf", "virtughan", "matplotlib", "pyproj", "shapely"],
+    )
+```
+
+```{python}
+import json
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pyproj
+import rioxarray  # noqa: F401  registers the .rio accessor
+import xarray as xr
+from pystac_client import Client
+from shapely.geometry import box
+from shapely.ops import transform as shp_transform
+
+ROOT = Path.cwd().parent if Path.cwd().name == "notebooks" else Path.cwd()
+BBOX = json.loads((ROOT / "data" / "aoi" / "salzburg_bbox.json").read_text())["bbox"]
+xmin, ymin, xmax, ymax = BBOX
+OUT = ROOT / "data" / "outputs"
+OUT.mkdir(parents=True, exist_ok=True)
+print(f"AOI bbox = {BBOX}")
+```
+
+## 1. STAC search, Earth Search v1
+
+```{python}
+catalog = Client.open("https://earth-search.aws.element84.com/v1")
+search = catalog.search(
+    collections=["sentinel-2-l2a"],
+    bbox=BBOX,
+    datetime="2025-06-01/2025-09-30",
+    query={"eo:cloud_cover": {"lt": 10}},
+    limit=20,
+)
+items = sorted(search.items(), key=lambda i: i.properties["eo:cloud_cover"])
+print(f"items found = {len(items)}")
+for it in items[:5]:
+    print(
+        f"  {it.id}, cloud={it.properties['eo:cloud_cover']:.1f}%, "
+        f"date={it.datetime.date()}"
+    )
+item = items[0]
+```
+
+## 2. Open only the bands we need from the COG
+
+Sentinel-2 L2A bands on Earth Search are individual **Cloud Optimized GeoTIFFs**. We open just `red`, `nir`, `green`, clipped to our AOI window. No full-scene download.
+
+```{python}
+def open_band(item, asset_key):
+    return rioxarray.open_rasterio(item.assets[asset_key].href, masked=True).squeeze(drop=True)
+
+red = open_band(item, "red")
+nir = open_band(item, "nir")
+green = open_band(item, "green")
+print(f"native CRS = {red.rio.crs}, scene shape = {red.shape}")
+```
+
+```{python}
+target_crs = red.rio.crs
+to_native = pyproj.Transformer.from_crs("EPSG:4326", target_crs, always_xy=True).transform
+window = shp_transform(to_native, box(xmin, ymin, xmax, ymax)).bounds
+
+red_aoi = red.rio.clip_box(*window)
+nir_aoi = nir.rio.clip_box(*window)
+green_aoi = green.rio.clip_box(*window)
+print(f"AOI window shape = {red_aoi.shape}")
+```
+
+## 3. NDVI and NDWI
+
+```{python}
+red_f = red_aoi.astype("float32")
+nir_f = nir_aoi.astype("float32")
+green_f = green_aoi.astype("float32")
+ndvi = (nir_f - red_f) / (nir_f + red_f)
+ndwi = (green_f - nir_f) / (green_f + nir_f)
+ndvi.attrs["long_name"] = "NDVI"
+ndwi.attrs["long_name"] = "NDWI"
+print(f"NDVI range = {float(ndvi.min()):.2f} .. {float(ndvi.max()):.2f}")
+print(f"NDWI range = {float(ndwi.min()):.2f} .. {float(ndwi.max()):.2f}")
+```
+
+```{python}
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+ndvi.plot(ax=axes[0], cmap="RdYlGn", vmin=-0.2, vmax=0.8, add_colorbar=True)
+axes[0].set_title(f"NDVI · Salzburg · {item.datetime.date()}")
+axes[0].set_aspect("equal")
+ndwi.plot(ax=axes[1], cmap="RdBu", vmin=-0.5, vmax=0.5, add_colorbar=True)
+axes[1].set_title(f"NDWI · Salzburg · {item.datetime.date()}")
+axes[1].set_aspect("equal")
+fig.tight_layout()
+fig.savefig(OUT / "ndvi_ndwi_salzburg.png", dpi=140, bbox_inches="tight")
+plt.show()
+```
+
+## 4. Persist NDVI and NDWI as COG
+
+```{python}
+ndvi.rio.write_crs(target_crs, inplace=True)
+ndwi.rio.write_crs(target_crs, inplace=True)
+ndvi.rio.to_raster(OUT / "ndvi_salzburg.tif", driver="COG", compress="DEFLATE")
+ndwi.rio.to_raster(OUT / "ndwi_salzburg.tif", driver="COG", compress="DEFLATE")
+print(f"wrote NDVI + NDWI COGs to {OUT}")
+```
+
+## 5. Time-aggregated NDVI with VirtuGhan
+
+[VirtuGhan](https://github.com/kshitijrajsharma/VirtuGhan) computes the index on-the-fly across a time window over a STAC catalog without you materialising the inputs. It returns a per-scene stack and a temporal aggregate.
+
+```{python}
+from virtughan.engine import VirtughanProcessor
+
+vg_out = OUT / "virtughan_salzburg"
+vg_out.mkdir(parents=True, exist_ok=True)
+
+processor = VirtughanProcessor(
+    bbox=BBOX,
+    start_date="2025-06-01",
+    end_date="2025-08-31",
+    cloud_cover=30,
+    formula="(band1 - band2) / (band1 + band2)",
+    band1="nir",
+    band2="red",
+    operation="median",
+    timeseries=False,
+    output_dir=str(vg_out),
+    smart_filter=False,
+)
+processor.compute()
+print(sorted(p.name for p in vg_out.iterdir()))
+```
+
+## 6. EOPF Zarr Sentinel-2 via xarray-eopf
+
+The ESA EOPF Sample Service ships Sentinel products as **Zarr**, indexed by a **STAC** endpoint. We open one as an `xarray.DataTree` without downloading the whole product.
+
+```{python}
+eopf_catalog = Client.open("https://stac.core.eopf.eodc.eu/")
+eopf_search = eopf_catalog.search(
+    collections="sentinel-2-l2a",
+    bbox=BBOX,
+    datetime="2025-06-01T00:00:00Z/2025-09-30T23:59:59Z",
+    limit=5,
+)
+eopf_items = list(eopf_search.items())
+eopf_item = eopf_items[0]
+print(f"EOPF items = {len(eopf_items)}, picked {eopf_item.id}")
+```
+
+```{python}
+sr_10m = eopf_item.assets["SR_10m"]
+print(f"opening {sr_10m.href}")
+dt = xr.open_datatree(sr_10m.href, engine="zarr", chunks="auto")
+print(dt)
+```
+
+## References
+
+- Earth Search v1: <https://element84.com/geospatial/introducing-earth-search-v1-new-datasets-now-available/>
+- pystac-client: <https://pystac-client.readthedocs.io/>
+- COG: <https://cogeo.org/>
+- VirtuGhan: <https://github.com/kshitijrajsharma/VirtuGhan>
+- EOPF Zarr STAC: <https://eopf-toolkit.github.io/eopf-101/>
+- EOPF tutorial: <https://eopf-toolkit.github.io/eopf-101/04_eopf_and_stac/44_eopf_stac_xarray_tutorial.html>

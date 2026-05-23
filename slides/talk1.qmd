@@ -15,9 +15,14 @@ format:
     history: true
     transition: none
     chalkboard: true
+    lightbox: auto
     preview-links: auto
     footer: "Kshitij Raj Sharma · CIVIS Salzburg 2026"
     highlight-style: github
+    include-in-header:
+      text: |
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+        <style>.bi { vertical-align: -0.12em; }</style>
 ---
 
 ## About the speaker
@@ -44,15 +49,15 @@ Working with GeoAI at the intersection of OpenStreetMap, Earth Observation, and 
 
 ## Outline
 
-1. What is **Cloud Native Geospatial**, and why now?
-2. **STAC**, how you discover the data
-3. The **format landscape**, one table
-4. **COG** vs **Zarr**
-5. **Vector** formats: GeoParquet, FlatGeobuf, PMTiles, COPC
-6. **Geo AI**: embeddings and models
-7. A **decision tree**, and what you do tomorrow
+1. **Cloud Native Geospatial**
+2. **STAC**
+3. **CNG file formats**
+4. **COG & Zarr**
+5. **Vector formats**
+6. **Geo AI**
+7. **Wrap**: decision tree + what we do tomorrow
 
-# 1 · What is Cloud Native Geospatial?
+# 1 · Cloud Native Geospatial
 
 ## The problem
 
@@ -79,7 +84,7 @@ Sources: <https://guide.cloudnativegeo.org/> · [CDSE Annual Report 2024](https:
 Sources: <https://guide.cloudnativegeo.org/> · NASA Task 51 Cloud-Optimized Format Study
 :::
 
-## What cloud optimization gives us
+## Benefits of cloud optimization
 
 ::: incremental
 - **Reduced latency.** Fetch subsets of the raw data, not whole files.
@@ -92,7 +97,7 @@ Sources: <https://guide.cloudnativegeo.org/> · NASA Task 51 Cloud-Optimized For
 Source: <https://guide.cloudnativegeo.org/>
 :::
 
-## Why? The latency argument
+## Importance of cloud native geospatial
 
 ::: {.columns}
 ::: {.column width="50%"}
@@ -123,27 +128,28 @@ The "shipping" step disappears.
 :::
 :::
 
-# 2 · STAC, how you find data
+# 2 · STAC
 
-## STAC is not a format
+## STAC
+
+::: {.columns}
+::: {.column width="55%"}
+![](../assets/images/refs/stac_example.png)
+:::
+::: {.column width="45%"}
+**SpatioTemporal Asset Catalog.** A standard for describing geospatial data so any client can search a catalog by **space, time, and properties**, then fetch only the assets it needs. Specification + community.
 
 ::: {.callout-important}
-**STAC is how you find cloud-native data.**
-
-Bytes are useless if you can't query for them.
+**STAC is how you find cloud-native data.** Bytes are useless if you can't query for them.
 :::
-
-## STAC components
-
-::: {.center-img}
-![](../assets/images/refs/stac_example.png)
+:::
 :::
 
 ::: footer
-Figure: <https://eopf-toolkit.github.io/eopf-101/04_eopf_and_stac/41_stac_intro.html>
+Definition: <https://stacspec.org/en/about/> · Figure: <https://eopf-toolkit.github.io/eopf-101/04_eopf_and_stac/41_stac_intro.html>
 :::
 
-## Inside an Item
+## What's in a STAC Item?
 
 ::: {.center-img}
 ![](../assets/images/refs/item_inf.png)
@@ -153,7 +159,7 @@ Figure: <https://eopf-toolkit.github.io/eopf-101/04_eopf_and_stac/41_stac_intro.
 Figure: <https://eopf-toolkit.github.io/eopf-101/04_eopf_and_stac/41_stac_intro.html>
 :::
 
-## Analogy, a drinks menu (or a Nepali tea shop)
+## STAC analogy: a drinks menu
 
 ::: {.center-img}
 ![](../assets/images/refs/drinks_menu.png)
@@ -165,18 +171,34 @@ Figure: <https://eopf-toolkit.github.io/eopf-101/04_eopf_and_stac/41_stac_intro.
 Figure: <https://eopf-toolkit.github.io/eopf-101/04_eopf_and_stac/41_stac_intro.html>
 :::
 
-## Live, 4 STAC catalogs in a browser
+## Examples of STAC catalogs
 
 ::: incremental
-- **Earth Search**, [earth-search.aws.element84.com/v1](https://earth-search.aws.element84.com/v1) · Sentinel-2 L2A, the workhorse
-- **OpenAerialMap / HOTOSM**, [stac-browser](https://radiantearth.github.io/stac-browser/#/external/api.imagery.hotosm.org/stac/) · drone + Maxar ARD
-- **STAC for ML models**, [stac.fair.krschap.tech](https://stac.fair.krschap.tech) · "STAC isn't just for pixels"
-- **EOPF Sample Service**, [stac.core.eopf.eodc.eu](https://stac.core.eopf.eodc.eu) · Zarr-native Sentinel
+- **Earth Search** · Sentinel-2 L2A, the workhorse · [browse](https://radiantearth.github.io/stac-browser/#/external/earth-search.aws.element84.com/v1)
+- **OpenAerialMap / HOTOSM** · drone + Maxar ARD · [browse](https://radiantearth.github.io/stac-browser/#/external/api.imagery.hotosm.org/stac/)
+- **STAC for ML models** · "STAC isn't just for pixels" · [browse](https://radiantearth.github.io/stac-browser/#/external/stac.fair.krschap.tech)
+- **EOPF Sample Service** · Zarr-native Sentinel · [browse](https://radiantearth.github.io/stac-browser/#/external/stac.core.eopf.eodc.eu)
 :::
 
-# 3 · The format landscape
+## Earth Search
 
-## Traditional → Cloud Native
+<iframe src="https://radiantearth.github.io/stac-browser/#/external/earth-search.aws.element84.com/v1" width="1100" height="540" style="display: block; margin: 0 auto; border: 1px solid #ccc;"></iframe>
+
+## OpenAerialMap / HOTOSM
+
+<iframe src="https://radiantearth.github.io/stac-browser/#/external/api.imagery.hotosm.org/stac/" width="1100" height="540" style="display: block; margin: 0 auto; border: 1px solid #ccc;"></iframe>
+
+## STAC for ML models
+
+<iframe src="https://radiantearth.github.io/stac-browser/#/external/stac.fair.krschap.tech" width="1100" height="540" style="display: block; margin: 0 auto; border: 1px solid #ccc;"></iframe>
+
+## EOPF Sample Service
+
+<iframe src="https://radiantearth.github.io/stac-browser/#/external/stac.core.eopf.eodc.eu" width="1100" height="540" style="display: block; margin: 0 auto; border: 1px solid #ccc;"></iframe>
+
+# 3 · CNG file formats
+
+## Traditional -> Cloud Native
 
 ::: {.center-img}
 ![](../assets/images/refs/cogeo-formats-table.png)
@@ -186,67 +208,78 @@ Figure: <https://eopf-toolkit.github.io/eopf-101/04_eopf_and_stac/41_stac_intro.
 Figure: <https://guide.cloudnativegeo.org/>
 :::
 
-## The primitive: HTTP range requests
+## HTTP range requests
+
+::: {.columns}
+::: {.column width="50%"}
+```{mermaid}
+%%| fig-align: center
+sequenceDiagram
+    Client->>S3: Range: bytes=0-127
+    S3-->>Client: header
+    Client->>S3: Range: bytes=8K-12K
+    S3-->>Client: chunk for AOI
+```
+:::
+::: {.column width="50%"}
+The file lives on object storage. The client fetches **only the byte ranges it needs**: 1 request for the header, N requests for the chunks touching the AOI. The rest of a 1.2 GB file is never transferred.
+
+```{.http code-line-numbers="1-3|5-8"}
+GET /austria_buildings.fgb HTTP/1.1
+Host: huggingface.co
+Range: bytes=0-127
+
+HTTP/1.1 206 Partial Content
+Content-Range: bytes 0-127/1264532992
+Content-Length: 128
+Accept-Ranges: bytes
+```
+:::
+:::
+
+# 4 · COG & Zarr
+
+## Cloud Optimized GeoTIFF (COG)
+
+> "A regular GeoTIFF file, aimed at being hosted on a HTTP file server, with an internal organization that enables more efficient workflows on the cloud."
 
 ::: {.columns}
 ::: {.column width="55%"}
-![](../assets/images/refs/cog-diagram.png)
+![](../assets/images/refs/cog-e84.png)
 :::
 ::: {.column width="45%"}
-The file lives on object storage. The client fetches **only the byte ranges it needs**.
-
-- 1 request reads the **metadata header** (a few KB)
-- N requests read the **chunks** that touch the AOI
-- The rest of the file is never transferred
-
-Cloud native = chunked file + HTTP range support + a reader that knows the layout.
-:::
-:::
-
-::: footer
-Figure: <https://guide.cloudnativegeo.org/>
-:::
-
-# 4 · Raster, COG vs Zarr
-
-## COG, what it is
-
-::: {.columns}
-::: {.column width="55%"}
-![](../assets/images/refs/cogtiff.png)
-:::
-::: {.column width="45%"}
-- A **GeoTIFF** with a specific internal layout
 - **Tiled** + **overviewed** (pyramid)
 - One HTTP request fetches metadata, then range requests fetch only the tiles touching your AOI
-- Backwards compatible: any GDAL tool reads it
+- Backwards compatible: any GDAL tool reads it as a regular GeoTIFF
 :::
 :::
 
 ::: footer
-Figure: EOPF 101 · Spec: <https://cogeo.org/>
+Definition + spec: <https://cogeo.org/> · Figure: [Element 84](https://element84.com/software-engineering/is-zarr-the-new-cog/)
 :::
 
-## Zarr, what it is
+## Zarr
+
+> "The open foundation for chunked, compressed, N-dimensional arrays."
 
 ::: {.columns}
 ::: {.column width="55%"}
 ![](../assets/images/refs/zarr-terminology-hierarchy.png)
 :::
 ::: {.column width="45%"}
-- Storage layout for **N-dimensional arrays**
 - Each array split into **chunks**, each chunk is its own object
 - Metadata is JSON next to the chunks
 - Works on S3, GCS, local disk through the same code path
 - Natural for **time stacks, multi-band cubes, embeddings**
+- ESA serves Sentinel as **EOPF Zarr** at [zarr.eopf.copernicus.eu](https://zarr.eopf.copernicus.eu/data-and-tools/), with GDAL / xarray / STAC plugins
 :::
 :::
 
 ::: footer
-Figure: EOPF 101 · Spec: <https://zarr-specs.readthedocs.io/>
+Definition: <https://zarr.dev/> · Spec: <https://zarr-specs.readthedocs.io/> · EOPF Zarr: <https://zarr.eopf.copernicus.eu/data-and-tools/> · Figure: EOPF 101
 :::
 
-## COG vs Zarr, side by side
+## COG & Zarr
 
 ::: {.center-img}
 ![](../assets/images/refs/cog-vs-zarr.png)
@@ -256,7 +289,7 @@ Figure: EOPF 101 · Spec: <https://zarr-specs.readthedocs.io/>
 Figure: <https://element84.com/software-engineering/is-zarr-the-new-cog/>
 :::
 
-## The short answer
+## When to use which
 
 | If you have...                                | Reach for |
 |-----------------------------------------------|-----------|
@@ -267,42 +300,26 @@ Figure: <https://element84.com/software-engineering/is-zarr-the-new-cog/>
 | Multi-resolution previews                     | **COG**   |
 | New ND science workflows                      | **Zarr**  |
 
-::: footer
-Source: <https://eopf-toolkit.github.io/eopf-101/01_about_eopf/12_about_cloudoptimized_formats.html>
-:::
-
-# 5 · Salzburg, live
-
-## NDVI + NDWI from one Sentinel-2 COG
-
-::: {.center-img}
-![](../data/outputs/ndvi_ndwi_salzburg.png)
+::: {.callout-note}
+Element 84's take: the real question isn't COG **vs** Zarr, it's **how** you store inside either, tile/chunk sizes, compression, metadata, chosen for the access patterns you expect.
 :::
 
 ::: footer
-STAC search → COG range read → arithmetic. No scene was fully downloaded.
+Source: <https://eopf-toolkit.github.io/eopf-101/01_about_eopf/12_about_cloudoptimized_formats.html> · [Element 84 conclusion](https://element84.com/software-engineering/is-zarr-the-new-cog/)
 :::
 
-## A season of NDVI with VirtuGhan
+# 5 · Vector formats
 
-::: {.center-img}
-![](../data/outputs/virtughan_salzburg/custom_band_output_aggregate_colormap.png)
-:::
+## GeoParquet
 
-::: footer
-Median NDVI over Sentinel-2 scenes, June to August 2025, on-the-fly compute.
-:::
-
-# 6 · Vector formats
-
-## GeoParquet, columnar vector with spatial pushdown
+> "GeoParquet is an incubating Open Geospatial Consortium (OGC) standard that adds interoperable geospatial types (Point, Line, Polygon) to Parquet."
 
 ::: {.columns}
 ::: {.column width="55%"}
 ![](../assets/images/refs/gpq_query_window.png)
 :::
 ::: {.column width="45%"}
-- Apache Parquet + a `geometry` column + CRS in file-level metadata.
+- A `geometry` column + CRS in file-level metadata.
 - **GeoParquet 1.1** adds a `bbox` covering column.
 - Readers (`pyarrow`, `duckdb`, `geopandas`) **skip row groups** that do not intersect the query bbox.
 - The backbone of **Overture Maps** and most modern open vector datasets.
@@ -310,52 +327,67 @@ Median NDVI over Sentinel-2 scenes, June to August 2025, on-the-fly compute.
 :::
 
 ::: footer
-Figure: <https://guide.cloudnativegeo.org/> · Spec: <https://github.com/opengeospatial/geoparquet>
+Definition: <https://geoparquet.org/> · Spec: <https://github.com/opengeospatial/geoparquet> · Figure: <https://guide.cloudnativegeo.org/>
 :::
 
-## FlatGeobuf, single-file streaming with a packed R-tree
+## FlatGeobuf
+
+> "A performant binary encoding for geographic data based on flatbuffers that can hold a collection of Simple Features."
 
 ::: {.columns}
 ::: {.column width="55%"}
 ![](../assets/images/refs/fgb_diagram_2.png)
 :::
 ::: {.column width="45%"}
-- One binary file: header, features, then a **packed R-tree** at the end.
+- One binary file: magic bytes, header, optional **packed Hilbert R-tree**, then features.
 - `pyogrio.read_dataframe(url, bbox=...)` triggers a partial fetch: GDAL pulls only the feature blocks intersecting the bbox.
 - Drop-in replacement for Shapefile and GeoPackage that works straight off S3.
 :::
 :::
 
 ::: footer
-Figure: <https://guide.cloudnativegeo.org/> · Spec: <https://flatgeobuf.org/>
+Definition + spec: <https://flatgeobuf.org/> · Figure: <https://guide.cloudnativegeo.org/>
 :::
 
-## PMTiles, an entire tile pyramid in one file
+## PMTiles
+
+> "PMTiles is a single-file archive format for tiled data, usually used for visualization. It is designed to be a cloud-native file format: used directly from a client over a network via HTTP range requests, without having a server in the middle."
 
 ::: {.columns}
 ::: {.column width="55%"}
 ![](../assets/images/refs/tile-diagram.png)
 :::
 ::: {.column width="45%"}
-- MBTiles, reorganised as one S3-friendly file.
-- A small **directory** at the head maps `(z, x, y)` → byte offset.
-- The browser fetches the tiles in view via HTTP range requests, **no tile server**.
+- A single file holding the tiles + a directory mapping `(z, x, y)` → byte offset.
 - Pairs with **Protomaps** for vector basemaps.
+
+::: {.callout-important}
+**No tile server.** A static file on object storage + a viewer in the browser is the entire stack.
+:::
 :::
 :::
 
 ::: footer
-Figure: <https://guide.cloudnativegeo.org/> · Spec: <https://docs.protomaps.com/pmtiles/>
+Definition: <https://guide.cloudnativegeo.org/pmtiles/intro.html> · Spec: <https://docs.protomaps.com/pmtiles/>
 :::
 
-## COPC, cloud-optimized point clouds
+## Austria Buildings
+
+<iframe src="https://pmtiles.io/?url=https://huggingface.co/datasets/kshitijrajsharma/cng-workshop-materials/resolve/main/austria_buildings.pmtiles" width="1100" height="500" style="display: block; margin: 0 auto; border: 1px solid #ccc;"></iframe>
+
+::: footer
+~1.5GB of buildings served via HTTP range requests from Hugging Face. No tile server.
+:::
+
+## Cloud Optimized Point Cloud (COPC)
+
+> "Geospatial, compressed, range-readable, LAZ-compatible point cloud format. A COPC file is a LAZ 1.4 file that stores point data organized in a clustered octree."
 
 ::: {.columns}
 ::: {.column width="55%"}
 ![](../assets/images/refs/copc-vlr-chunk-table-illustration.png)
 :::
 ::: {.column width="45%"}
-- A **LAZ 1.4** file with a specific **octree-clustered** ordering of points.
 - A Variable Length Record (VLR) holds the chunk table.
 - Same idea as COG, but for LiDAR: range-fetch only the octants you need.
 - Tools: **PDAL**, **untwine**, browser COPC viewers.
@@ -363,52 +395,60 @@ Figure: <https://guide.cloudnativegeo.org/> · Spec: <https://docs.protomaps.com
 :::
 
 ::: footer
-Figure: <https://copc.io/> · Spec: <https://copc.io/>
+Definition + spec: <https://copc.io/>
 :::
 
-# 7 · Geo AI
+# 6 · Geo AI
 
-## Embeddings are arrays. Models are portable.
+## Embeddings and models
 
-- An embedding is `(n_locations, n_dims)`, often `(time, lat, lon, n_dims)`. That is **Zarr**, or **GeoParquet** with the embedding as a list column.
+- Embeddings: it is recommended to use **blob storage with HTTP range-read support**. Pick **Zarr** for regular grids, **GeoParquet** for sparse or irregular.
 - **ONNX** is "cloud-native" for models in the same spirit: portable, runtime-agnostic, streamable.
 - The **STAC ML model extension** publishes models as Items alongside the data they were trained on.
 
-> STAC isn't just for pixels.
+::: {.callout-tip}
+**STAC isn't just for pixels.** The same discovery layer that finds Sentinel-2 scenes also finds the models you'd run on them.
+:::
 
 ::: footer
 Refs: <https://geoembeddings.org/bestpractices.html> · <https://onnx.ai/> · <https://github.com/stac-extensions/ml-model>
 :::
 
-# 8 · Wrap
+# 7 · Wrap
 
-## A decision tree
+## Decision tree
 
-```
-Is your data...
-├── 2D raster, single time?              → COG
-├── ND raster, time series, cubes?       → Zarr
-├── Vector, tabular + geometry?          → GeoParquet
-├── Vector, single file, bbox reads?     → FlatGeobuf
-├── Map tiles you want to serve flat?    → PMTiles
-├── Point cloud?                         → COPC
-├── Embeddings?                          → Zarr or GeoParquet
-└── ML model?                            → ONNX, indexed in STAC
+```{mermaid}
+%%| fig-align: center
+%%| fig-width: 6
+%%| fig-height: 4
+%%{init: {"theme":"neutral","themeVariables":{"primaryColor":"#ffffff","primaryTextColor":"#000000","primaryBorderColor":"#000000","lineColor":"#000000","secondaryColor":"#ffffff","tertiaryColor":"#ffffff","fontFamily":"inherit"}}}%%
+flowchart TD
+  Q([Your data?]) --> R{Raster?}
+  Q --> V{Vector?}
+  Q --> O{Other?}
+  R -->|2D| COG
+  R -->|N-D| Zarr
+  V -->|Tabular| GeoParquet
+  V -->|Bbox reads| FlatGeobuf
+  V -->|Map tiles| PMTiles
+  O -->|Point cloud| COPC
+  O -->|Embeddings| EG[Zarr / GeoParquet]
+  O -->|ML model| ML[ONNX + STAC ML]
 ```
 
 Always: **publish a STAC** so people can find it.
 
-## Tomorrow, you write the code
+## Tomorrow, we write the code
 
-You will:
+We will:
 
 ::: incremental
-- Query **Overture Maps** GeoParquet with **DuckDB**
-- Turn an **OSM** PBF extract into GeoParquet with **QuackOSM**, then query and chunk it
-- Stream a **FlatGeobuf** subset over HTTP
-- Compute **NDVI** and **NDWI** over Salzburg from a Sentinel-2 COG via **STAC + xarray**
-- Build a seasonal NDVI composite with **VirtuGhan**
-- Open an **EOPF Zarr** Sentinel-2 product with `xarray-eopf`
+- Query **Overture Maps** (~200 GB of planet-scale GeoParquet on S3) with **DuckDB**, extract POIs for Salzburg
+- Inspect **GeoParquet 1.1** metadata on a 1.4 GB Austria buildings file on Hugging Face, bbox-stream the Salzburg subset via the `bbox` covering column
+- Inspect **FlatGeobuf** header + packed R-tree on the same file, bbox-stream over HTTP
+- Render the result on a **lonboard** map (GeoArrow → deck.gl)
+- Read the **PMTiles** header via HTTP range requests, view the whole Austria in `pmtiles.io`
 :::
 
 ## Resources
@@ -420,6 +460,7 @@ You will:
 - [geoembeddings.org/bestpractices](https://geoembeddings.org/bestpractices.html)
 - [pangeo.io](https://pangeo.io/) · [titiler](https://github.com/developmentseed/titiler)
 - [VirtuGhan](https://github.com/kshitijrajsharma/VirtuGhan) · [QuackOSM](https://github.com/kraina-ai/quackosm)
+- [EOPF toolkit launch](https://developmentseed.org/blog/2025-07-14-eopf-toolkit/) (Development Seed)
 
 ## Credits
 
@@ -427,15 +468,18 @@ Slide figures reused with attribution:
 
 - COG, Zarr, STAC components, STAC item, drinks-menu analogy: [EOPF 101](https://eopf-toolkit.github.io/eopf-101/), © ESA / Development Seed, CC-BY 4.0
 - "Traditional → Cloud Native" format table: [Cloud Native Geo Guide](https://guide.cloudnativegeo.org/), CC-BY 4.0
-- COG vs Zarr comparison: [Element 84, "Is Zarr the new COG?"](https://element84.com/software-engineering/is-zarr-the-new-cog/)
+- COG & Zarr comparison: [Element 84, "Is Zarr the new COG?"](https://element84.com/software-engineering/is-zarr-the-new-cog/)
 - GeoParquet query window, FlatGeobuf diagram, COG byte layout, PMTiles tile pyramid: [Cloud Native Geo Guide](https://guide.cloudnativegeo.org/), CC-BY 4.0
 - COPC chunk-table illustration: [copc.io](https://copc.io/)
+- COG file-structure diagram: [Element 84](https://element84.com/software-engineering/is-zarr-the-new-cog/)
 - Salzburg NDVI/NDWI + VirtuGhan composite: original, generated by the Day 2 raster notebook
 - Speaker photo: [kshitijrajsharma.com.np](https://kshitijrajsharma.com.np/about/)
 
 Built with [Quarto + RevealJS](https://quarto.org/docs/presentations/revealjs/). Source: [github.com/kshitijrajsharma/cng-workshop-materials](https://github.com/kshitijrajsharma/cng-workshop-materials).
 
-## Slides + follow
+# Any questions? {.center}
+
+<i class="bi bi-globe-americas"></i> धन्यवाद · Thank you · Danke · Bonjour
 
 ::: {.qr-grid}
 ::: {}
@@ -443,26 +487,16 @@ Built with [Quarto + RevealJS](https://quarto.org/docs/presentations/revealjs/).
 
 **Slides**
 
-virtughan.github.io/civis-workshop-eo-2026
+kshitijrajsharma.github.io/cng-workshop-materials
 :::
 
 ::: {}
 ![](../assets/images/qr_github.png)
 
-**Repo**
+**Repo · Buy me a coffee**
 
 github.com/kshitijrajsharma/cng-workshop-materials
 :::
 :::
 
-##  {.center}
-
-# Any questions?
-
-. . .
-
-# धन्यवाद · Thank you · Danke
-
-::: {.r-fit-text}
-Kshitij Raj Sharma · krschap@proton.me
-:::
+<i class="bi bi-envelope"></i> krschap@proton.me &nbsp; · &nbsp; <i class="bi bi-person"></i> Kshitij Raj Sharma
