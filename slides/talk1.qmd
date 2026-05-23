@@ -41,7 +41,7 @@ filters:
 
 Open Source GIS Developer, author of [VirtuGhan](https://github.com/kshitijrajsharma/VirtuGhan) & other libraries.
 
-Working with GeoAI at the intersection of OpenStreetMap, Earth Observation, and cloud-native data formats. Passionate about developing softwares that benefits human kind.
+Working with GeoAI at the intersection of OpenStreetMap, Earth Observation, and cloud-native data formats. Passionate about developing software that benefits humankind.
 
 - krschap@proton.me
 - [github.com/kshitijrajsharma](https://github.com/kshitijrajsharma)
@@ -225,7 +225,7 @@ sequenceDiagram
 ```
 :::
 ::: {.column width="50%"}
-The file lives on object storage. The client fetches **only the byte ranges it needs**: 1 request for the header, N requests for the chunks touching the AOI. The rest of a 1.2 GB file is never transferred.
+HTTP has supported partial downloads since 1999 (`Range: bytes=X-Y`). The file lives on object storage. The client fetches **only the byte ranges it needs**: 1 request for the header, N requests for the chunks touching the AOI. The rest of a 1.2 GB file is never transferred.
 
 ```{.http code-line-numbers="1-3|5-8"}
 GET /austria_buildings.fgb HTTP/1.1
@@ -405,7 +405,9 @@ Definition + spec: <https://copc.io/>
 
 ## Embeddings and models
 
-- Embeddings: it is recommended to use **blob storage with HTTP range-read support**. Pick **Zarr** for regular grids, **GeoParquet** for sparse or irregular.
+An **embedding** is a learned vector that summarises what's in a pixel or feature. Two pixels with similar land cover get similar vectors, so distance in vector space ≈ similarity on the ground. Datasets like Alpha Earth publish a 64-D embedding for every 10 m Sentinel-2 pixel on Earth.
+
+- Embeddings: use **blob storage with HTTP range-read support**. **Zarr** for regular grids, **GeoParquet** for sparse or irregular.
 - **ONNX** is "cloud-native" for models in the same spirit: portable, runtime-agnostic, streamable.
 - The **STAC ML model extension** publishes models as Items alongside the data they were trained on.
 
@@ -444,14 +446,22 @@ Always: **publish a STAC** so people can find it.
 
 ## Tomorrow, we write the code
 
-We will:
+**Day 2 / Vector** ([notebook](../notebooks/01_vector.qmd))
 
 ::: incremental
-- Query **Overture Maps** (~200 GB of planet-scale GeoParquet on S3) with **DuckDB**, extract POIs for Salzburg
-- Inspect **GeoParquet 1.1** metadata on a 1.4 GB Austria buildings file on Hugging Face, bbox-stream the Salzburg subset via the `bbox` covering column
+- Query **Overture Maps** planet-scale GeoParquet on S3 with **DuckDB**, extract POIs for Salzburg
+- Inspect **GeoParquet 1.1** metadata + bbox-stream the Salzburg subset of the 1.4 GB Austria buildings file
 - Inspect **FlatGeobuf** header + packed R-tree on the same file, bbox-stream over HTTP
-- Render the result on a **lonboard** map (GeoArrow → deck.gl)
-- Read the **PMTiles** header via HTTP range requests, view the whole Austria in `pmtiles.io`
+- Read the **PMTiles** header via HTTP range requests, view all of Austria in `pmtiles.io`
+- Bonus: cluster **Alpha Earth** 64-D embeddings (Zarr on Source Cooperative S3)
+:::
+
+**Day 2 / Raster** ([notebook](../notebooks/02_raster.qmd))
+
+::: incremental
+- **STAC**-search Sentinel-2 L2A over Salzburg, pick the cleanest scene
+- Compute NDVI + NDWI **three ways**: COG (`rioxarray`), Zarr (EOPF Sample Service), on-the-fly (**VirtuGhan**)
+- Build two NDVI **datacubes** for the growing season (xarray + COG; VirtuGhan timeseries), compare the median trends
 :::
 
 ## Resources

@@ -1,6 +1,6 @@
 ---
-title: "Raster"
-subtitle: "Same Salzburg AOI, three cloud-native access patterns, plus two timeseries datacubes"
+title: "Raster data, hands-on"
+subtitle: "Same Salzburg AOI, three cloud-native access patterns to Sentinel-2, plus two NDVI datacubes over the growing season"
 author: "Kshitij Raj Sharma"
 date: today
 format:
@@ -19,7 +19,7 @@ format:
 execute:
   echo: true
   warning: false
-  cache: false
+  cache: true
   freeze: auto
 jupyter: python3
 ---
@@ -28,18 +28,12 @@ jupyter: python3
 [![Download .ipynb](https://img.shields.io/badge/Download-.ipynb-F37626?logo=jupyter&logoColor=white)](https://github.com/kshitijrajsharma/cng-workshop-materials/raw/master/notebooks/02_raster.ipynb)
 [![Repo](https://img.shields.io/badge/Source-GitHub-181717?logo=github&logoColor=white)](https://github.com/kshitijrajsharma/cng-workshop-materials)
 
+**What you'll do.** Find a clean Sentinel-2 scene over Salzburg from a STAC catalog, then compute the same two indices (NDVI and NDWI) three different ways: from individual band **COGs** (lazy HTTP range reads via `rioxarray`), from a single **Zarr** product (one open, slice in array coordinates) on ESA's EOPF Sample Service, and through **VirtuGhan** which runs the formula directly against cloud-resident COGs and only returns the result. Finish with two NDVI **datacubes** over the 2025 growing season, one built by hand with xarray, one produced by VirtuGhan, and compare the seasonal trends.
+
 ```{python}
 #| eval: false
-import subprocess
-import sys
-
-if "google.colab" in sys.modules:
-    subprocess.check_call(
-        [sys.executable, "-m", "pip", "install", "-q",
-         "pystac-client", "rioxarray", "xarray", "zarr>=3",
-         "virtughan", "matplotlib", "pyproj", "shapely",
-         "pandas", "aiohttp", "fsspec"],
-    )
+# Uncomment and run this cell once if you are on Colab or a fresh kernel.
+# !pip install -q pystac-client rioxarray xarray "zarr>=3" virtughan matplotlib pyproj shapely pandas aiohttp fsspec  # noqa: E501
 ```
 
 ```{python}
@@ -77,6 +71,10 @@ print(f"AOI bbox (UTM 33N) = ({xmin_u:.0f}, {ymin_u:.0f}, {xmax_u:.0f}, {ymax_u:
 print(f"target MGRS tile   = {TARGET_GRID}")
 ```
 
+::: {.callout-note}
+**Why pin to one MGRS tile?** Sentinel-2 is published as 100 km MGRS tiles on a fixed UTM grid. Salzburg sits where four tiles overlap (`33UUP, 33TUN, 32TQT, 32UQU`). Pinning to `MGRS-33UUP` means every scene the catalog returns shares one CRS and one pixel grid, so `xr.concat` later can stack them into a cube without reprojection. We come back to this trade-off in §5.
+:::
+
 ```{python}
 def plot_indices(ndvi, ndwi, title):
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
@@ -93,7 +91,7 @@ def plot_indices(ndvi, ndwi, title):
 
 ## 1. Pick a clean Sentinel-2 scene over Salzburg (STAC)
 
-Earth Search by Element84 is a public STAC API in front of Sentinel-2 L2A on AWS Open Data. We filter by bbox, date window, cloud cover, and the MGRS tile that fully covers our AOI (so every scene comes back in the same UTM grid). The same item identifier and date is reused by the COG, Zarr, and VirtuGhan sections so we are comparing access patterns, not different scenes.
+Earth Search by Element84 is a public STAC API in front of Sentinel-2 L2A on AWS Open Data. We filter by bbox, date window, cloud cover, and the MGRS tile that fully covers our AOI, then sort by cloud cover and take the cleanest item. The COG section in §2 uses this exact scene; the Zarr section in §3 runs its own STAC query against the EOPF catalog because that catalog is a sparser sample; the VirtuGhan section in §4 uses a small ±3-day window around the same date. They are not byte-identical scenes, the point is to compare access patterns.
 
 ```{python}
 ES = Client.open("https://earth-search.aws.element84.com/v1")
@@ -115,6 +113,8 @@ print(f"date           = {DATE}, cloud = {item.properties['eo:cloud_cover']:.2f}
 ## 2. COG access, fetch only the bands and pixels you need
 
 Each Sentinel-2 band on Earth Search is a **Cloud Optimized GeoTIFF**. The COG layout (tile-aligned, internally indexed) lets `rioxarray.open_rasterio(...).rio.clip_box(...)` issue HTTP range requests for only the bytes covering the AOI. Three band assets, three lazy reads, no full-scene download.
+
+We compute two indices from the bands. **NDVI** = (NIR − Red) / (NIR + Red), the standard vegetation greenness signal, high where chlorophyll is active. **NDWI** = (Green − NIR) / (Green + NIR), highlights open water and saturated surfaces. Both are unitless ratios in [-1, 1].
 
 ```{python}
 def cog_band(stac_item, asset_key):
@@ -171,7 +171,7 @@ ndvi_zarr = (aoi.b08 - aoi.b04) / (aoi.b08 + aoi.b04)
 ndwi_zarr = (aoi.b03 - aoi.b08) / (aoi.b03 + aoi.b08)
 t_zarr = time.perf_counter() - t0
 print(f"Zarr path: {t_zarr:.2f} s, AOI shape = {aoi.b04.shape}")
-print(f"COG path (different scene, for reference): {t_cog:.2f} s")
+print(f"COG path from §2 for reference: {t_cog:.2f} s (different scene, same AOI)")
 ```
 
 ```{python}
@@ -225,7 +225,9 @@ plot_indices(ndvi_vg, ndwi_vg, f"VirtuGhan median, {VG_START} to {VG_END}")
 
 ## 5. Datacube, NDVI time series with xarray + COG
 
-For a seasonal trend we don't want a single scene, we want every clear scene in the window stacked along a `time` axis. Below: search L2A for the Salzburg growing season, build a `(time, y, x)` cube by lazy-opening each scene's COG bands, take the spatial median per date, fit a linear trend, and plot in the same style as the VirtuGhan chart further down so the two are directly comparable.
+A **datacube** is just a multi-dimensional array with named axes. Until now we worked with a `(y, x)` slice for a single date. Stack N dates along a new `time` axis and you get a `(time, y, x)` cube. Take the spatial median per date and you collapse `(y, x)` into a single number, yielding a `(time,)` series, the seasonal trend.
+
+Below: search L2A for the Salzburg growing season, build the `(time, y, x)` cube by lazy-opening each scene's COG bands, take the spatial median per date, fit a linear trend, and plot in the same style as the VirtuGhan chart further down so the two are directly comparable.
 
 ```{python}
 TS_START, TS_END = "2025-05-01", "2025-09-30"

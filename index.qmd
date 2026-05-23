@@ -5,6 +5,16 @@ subtitle: "CIVIS, Salzburg, 2026"
 
 A two-session workshop by [Kshitij Raj Sharma](https://kshitijrajsharma.com.np/about/) on **Cloud Native Geospatial (CNG)**: what makes a file format "cloud native", why it matters, and how to use the current generation of formats in real workflows.
 
+## What is "Cloud Native Geospatial"?
+
+Geospatial files used to be downloaded whole, then cropped. Cloud Native Geospatial flips that: the file stays on object storage (S3, R2, Hugging Face, ...) and the client uses **HTTP range requests** to fetch only the bytes inside the area of interest. A 1.4 GB file plus a small AOI now costs hundreds of kB on the wire instead of the whole 1.4 GB. The trick is to use file formats designed for it (**COG, Zarr, GeoParquet, FlatGeobuf, PMTiles**) and a discovery layer that knows how to find them (**STAC**).
+
+## How to use this site
+
+- **First time here?** Read the [Day 1 slides](slides/talk1.qmd) end-to-end. They define each term, show one canonical example per format, and finish with a decision tree for picking the right one.
+- **Want to run the code?** Open the [Day 2 notebooks](notebooks/01_vector.qmd). Each notebook is standalone and runs in your browser via Colab (one-click badge at the top) or locally with `uv`.
+- **In a hurry?** Jump straight to the [decision tree](slides/talk1.qmd#decision-tree). It's the one slide to take away.
+
 ## Expectations
 
 - A mental model of cloud-native data access: chunked files on object storage, HTTP range requests, predicate pushdown, no full downloads.

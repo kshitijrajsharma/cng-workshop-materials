@@ -1,6 +1,6 @@
 ---
-title: "Vector"
-subtitle: "Cloud-native vector formats: metadata, indexing, and where each shines"
+title: "Vector data, hands-on"
+subtitle: "GeoParquet, FlatGeobuf, PMTiles, and an embeddings bonus, all on the same Salzburg AOI"
 author: "Kshitij Raj Sharma"
 date: today
 format:
@@ -28,17 +28,12 @@ jupyter: python3
 [![Download .ipynb](https://img.shields.io/badge/Download-.ipynb-F37626?logo=jupyter&logoColor=white)](https://github.com/kshitijrajsharma/cng-workshop-materials/raw/master/notebooks/01_vector.ipynb)
 [![Repo](https://img.shields.io/badge/Source-GitHub-181717?logo=github&logoColor=white)](https://github.com/kshitijrajsharma/cng-workshop-materials)
 
+**What you'll do.** Pull POIs from **Overture**'s planet-scale GeoParquet on S3 with a single SQL query, then read three different cloud-native vector formats of the same Austria buildings dataset (**GeoParquet**, **FlatGeobuf**, **PMTiles**) directly off Hugging Face over HTTPS, fetching only the bytes that intersect Salzburg. We visualise everything on a `lonboard` map. Finish with a bonus: 64-D **Alpha Earth embeddings** opened as Zarr, clustered into land-cover groups.
+
 ```{python}
 #| eval: false
-import subprocess
-import sys
-
-if "google.colab" in sys.modules:
-    subprocess.check_call(
-        [sys.executable, "-m", "pip", "install", "-q",
-         "duckdb", "geopandas", "pyogrio", "lonboard", "shapely", "pmtiles", "pyarrow",
-         "xarray", "zarr", "s3fs", "scipy"],
-    )
+# Uncomment and run this cell once if you are on Colab or a fresh kernel.
+# !pip install -q duckdb geopandas pyogrio lonboard shapely pmtiles pyarrow xarray zarr s3fs scipy fsspec  # noqa: E501
 ```
 
 ```{python}
@@ -68,7 +63,7 @@ print(f"AOI bbox = {BBOX}")
 
 ## 1. Overture, query a planet-scale GeoParquet on S3 with SQL
 
-Overture publishes the planet as partitioned GeoParquet on a public S3 bucket. DuckDB pushes the `bbox`-struct predicate into row-group filtering. Only the row groups whose extent intersects Salzburg are fetched, the rest of the planet is skipped at the byte level.
+Overture publishes the planet as partitioned GeoParquet on a public S3 bucket. The S3 layout is **Hive-partitioned**: each combination of theme + type lives in its own subfolder (`theme=places/type=place/...`). With `hive_partitioning=1`, DuckDB reads that structure as columns and prunes whole subtrees before touching any data. Inside the surviving parquet files, the GeoParquet `bbox` struct lets DuckDB push the spatial predicate down to **row-group filtering**: only the row groups whose extent intersects Salzburg are fetched, the rest of the planet is skipped at the byte level.
 
 ```{python}
 con = duckdb.connect()
@@ -105,7 +100,7 @@ Map([ScatterplotLayer.from_geopandas(places, get_fill_color=[40, 160, 80, 200], 
 
 ## 2. GeoParquet, read the metadata first, then load directly on a map
 
-GeoParquet 1.1 keeps geo metadata (CRS, encoding, geometry column) in the parquet schema, and ships a `bbox` covering column so readers can prune row groups by spatial predicate. Look at the metadata, no feature data is fetched.
+Parquet stores rows in **row groups** (typically 100k-1M rows each), each compressed independently, with per-column statistics in the file footer. **GeoParquet 1.1** adds a `bbox` covering column whose statistics describe the spatial extent of each row group. A reader can therefore look at the footer (a few KB), decide which row groups intersect the query bbox, and fetch only those. Inspect the metadata first, no feature data is touched.
 
 ```{python}
 fs, path = fsspec.url_to_fs(AUSTRIA_GEOPARQUET)
@@ -136,7 +131,7 @@ Map([PolygonLayer.from_geopandas(buildings_gp, get_fill_color=[200, 80, 80, 160]
 
 ## 3. FlatGeobuf, header + R-tree, bbox-stream over HTTP
 
-FlatGeobuf prepends a binary header (CRS, feature count, geometry type, columns) and a packed R-tree. `pyogrio.read_info(url)` reads only the header.
+A FlatGeobuf file lays out three parts back-to-back: a binary **header** (CRS, feature count, geometry type, columns), a **packed Hilbert R-tree** index, then the features in spatial order. The R-tree lets a reader resolve "which feature blocks intersect this bbox?" with a handful of HTTP range requests, before fetching the matching feature bytes. `pyogrio.read_info(url)` reads only the header.
 
 ```{python}
 info = pyogrio.read_info(AUSTRIA_FGB)
@@ -168,7 +163,7 @@ Map([
 
 ## 4. PMTiles, one file, browser-side tile streaming
 
-PMTiles packs the entire vector-tile pyramid into a single file. A 16-byte header tells the viewer where to find each tile via HTTP range requests, no tile server, no Python.
+Classic web maps need a tile server (a process that takes `z/x/y` requests and returns tile bytes). PMTiles removes the server: it packs every tile of the pyramid plus a `(z, x, y) → byte offset` directory into one file. A browser viewer fetches the 16-byte header, then issues HTTP range requests for just the tiles in the current viewport. No backend, no Python, just a static file on object storage.
 
 
 ```{python}
@@ -201,7 +196,7 @@ Open the whole Austria buildings in the official viewer, the browser streams jus
 
 ## Bonus: the same trick on ML embeddings
 
-[Alpha Earth Foundations](https://geoembeddings.org/tutorials/xarray_geospatial_embeddings_intro.html) publishes 64-dimensional satellite embeddings as a public **Zarr** on Source Cooperative S3. Same cloud-native pattern as everything above: `xr.open_zarr` opens it without download, slicing fetches only the chunks for our AOI.
+An **embedding** is a learned vector that summarises what's in a pixel (or feature). Two pixels with similar land cover get similar vectors, so distance in vector space approximates similarity on the ground. [Alpha Earth Foundations](https://geoembeddings.org/tutorials/xarray_geospatial_embeddings_intro.html) publishes 64-dimensional embeddings for every 10 m Sentinel-2 pixel on Earth, packaged as a public **Zarr** on Source Cooperative S3. Same cloud-native pattern as everything above: `xr.open_zarr` opens it without download, slicing fetches only the chunks for our AOI. We then run k-means with k=5 to ask "group pixels into five land-cover-ish clusters by their embedding vectors, then colour the map by cluster".
 
 ```{python}
 import numpy as np
