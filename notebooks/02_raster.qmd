@@ -112,7 +112,7 @@ print(f"date           = {DATE}, cloud = {item.properties['eo:cloud_cover']:.2f}
 
 ## 2. COG access, fetch only the bands and pixels you need
 
-Each Sentinel-2 band on Earth Search is a **Cloud Optimized GeoTIFF**. The COG layout (tile-aligned, internally indexed) lets `rioxarray.open_rasterio(...).rio.clip_box(...)` issue HTTP range requests for only the bytes covering the AOI. Three band assets, three lazy reads, no full-scene download.
+Each Sentinel-2 band on Earth Search is a **Cloud Optimized GeoTIFF**. The COG layout (tile-aligned, internally indexed) lets `rioxarray.open_rasterio(...).rio.clip_box(...)` issue HTTP range requests for only the bytes covering the AOI. Three band assets, three lazy reads, only the AOI window crosses the wire.
 
 We compute two indices from the bands. **NDVI** = (NIR − Red) / (NIR + Red), the standard vegetation greenness signal, high where chlorophyll is active. **NDWI** = (Green − NIR) / (Green + NIR), highlights open water and saturated surfaces. Both are unitless ratios in [-1, 1].
 
@@ -180,7 +180,7 @@ plot_indices(ndvi_zarr, ndwi_zarr, f"Zarr, EOPF, {EOPF_DATE}")
 
 ## 4. VirtuGhan, on-the-fly index from cloud-resident COGs
 
-[VirtuGhan](https://github.com/kshitijrajsharma/VirtuGhan) takes a STAC catalog, a bbox, and a band-math formula, then computes the index directly from cloud-resident COGs and returns just the result. No per-band glue, no intermediate downloads. We give it the same AOI and a tight one-week window around our COG date, ask for the median-aggregated composite, and run it twice: once for NDVI, once for NDWI.
+[VirtuGhan](https://github.com/virtughan/virtughan) takes a STAC catalog, a bbox, and a band-math formula, then computes the index directly from cloud-resident COGs and returns just the result. The per-band fetching, masking, and aggregation all run server-side. We give it the same AOI and a tight one-week window around our COG date, ask for the median-aggregated composite, and run it twice: once for NDVI, once for NDWI.
 
 ```{python}
 from virtughan.engine import VirtughanProcessor
@@ -288,6 +288,8 @@ Same date window, same AOI, same Sentinel-2 source, but the per-date NDVI is com
 vg_ts_dir = OUT / "vg_ts_ndvi"
 vg_ts_dir.mkdir(parents=True, exist_ok=True)
 
+import os
+
 t0 = time.perf_counter()
 proc = VirtughanProcessor(
     bbox=list(BBOX),
@@ -301,12 +303,13 @@ proc = VirtughanProcessor(
     timeseries=True,
     output_dir=str(vg_ts_dir),
     smart_filter=False,
+    workers=os.cpu_count() or 4,
 )
 proc.compute()
 print(f"VirtuGhan timeseries: {time.perf_counter() - t0:.2f} s")
 ```
 
-VirtuGhan also writes `values_over_time.png` next to the per-date GeoTIFFs, with the spatial-median NDVI and a fitted trend line. No extra code needed, just display it.
+VirtuGhan also writes `values_over_time.png` next to the per-date GeoTIFFs, with the spatial-median NDVI and a fitted trend line. Display it directly.
 
 ```{python}
 Image(filename=str(vg_ts_dir / "values_over_time.png"))
@@ -318,5 +321,5 @@ Image(filename=str(vg_ts_dir / "values_over_time.png"))
 - pystac-client: <https://pystac-client.readthedocs.io/>
 - Cloud Optimized GeoTIFF: <https://cogeo.org/>
 - EOPF Sample Service: <https://eopf-toolkit.github.io/eopf-101/>
-- VirtuGhan: <https://github.com/kshitijrajsharma/VirtuGhan>
+- VirtuGhan: <https://github.com/virtughan/virtughan>
 - Sentinel-2 L2A bands: <https://sentiwiki.copernicus.eu/web/s2-products>

@@ -35,6 +35,19 @@
   max-height: 60vh;
 }
 
+.reveal .columns {
+  align-items: center;
+}
+
+.reveal .columns .column img,
+.reveal .columns .column .r-stretch img {
+  display: block;
+  max-width: 100%;
+  max-height: 55vh;
+  object-fit: contain;
+  margin: 0 auto;
+}
+
 .reveal .tiny {
   font-size: 0.55em;
   color: #888;

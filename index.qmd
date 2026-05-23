@@ -17,7 +17,7 @@ Geospatial files used to be downloaded whole, then cropped. Cloud Native Geospat
 
 ## Expectations
 
-- A mental model of cloud-native data access: chunked files on object storage, HTTP range requests, predicate pushdown, no full downloads.
+- A mental model of cloud-native data access: chunked files on object storage, HTTP range requests, predicate pushdown, byte-level subsetting in place of whole-file downloads.
 - Hands-on experience with **GeoParquet**, **FlatGeobuf**, **PMTiles**, **COG**, and **Zarr**, against real planet-scale data (Overture Maps, Sentinel-2).
 - Familiarity with **STAC** as the discovery layer that ties cloud-native datasets together.
 - A working setup you can copy and reuse on your own data.
