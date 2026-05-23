@@ -1,0 +1,26 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.quarto/
+**/*.quarto_ipynb
+_site/
+_freeze/
+.DS_Store
+.claude/
+CLAUDE.md
+.ruff_cache
+
+notebooks/files/
+files/
+data/outputs
+instructions.md
+
+# Everything generated under data/outputs/ is ignored by default.
+data/outputs/*
+!data/outputs/ndvi_ndwi_salzburg.png
+!data/outputs/virtughan_salzburg/
+data/outputs/virtughan_salzburg/*
+!data/outputs/virtughan_salzburg/custom_band_output_aggregate_colormap.png
+
+/.quarto/

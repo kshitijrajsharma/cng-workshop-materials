@@ -1,0 +1,197 @@
+---
+title: "Vector"
+subtitle: "Cloud-native vector formats: metadata, indexing, and where each shines"
+author: "Kshitij Raj Sharma"
+date: today
+format:
+  html:
+    toc: true
+    code-fold: false
+    code-tools: true
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  cache: false
+jupyter: python3
+---
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kshitijrajsharma/cng-workshop-materials/blob/master/notebooks/01_vector.ipynb)
+[![Download .ipynb](https://img.shields.io/badge/Download-.ipynb-F37626?logo=jupyter&logoColor=white)](https://github.com/kshitijrajsharma/cng-workshop-materials/raw/master/notebooks/01_vector.ipynb)
+[![Repo](https://img.shields.io/badge/Source-GitHub-181717?logo=github&logoColor=white)](https://github.com/kshitijrajsharma/cng-workshop-materials)
+
+```{python}
+#| eval: false
+import subprocess
+import sys
+
+if "google.colab" in sys.modules:
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", "-q",
+         "duckdb", "geopandas", "pyogrio", "lonboard", "shapely", "pmtiles", "pyarrow"],
+    )
+```
+
+```{python}
+import json
+from pathlib import Path
+
+import duckdb
+import fsspec
+import geopandas as gpd
+import pyarrow.parquet as pq
+import pyogrio
+from lonboard import Map, PolygonLayer, ScatterplotLayer
+from pmtiles.reader import MmapSource, Reader
+
+ROOT = Path.cwd().parent if Path.cwd().name == "notebooks" else Path.cwd()
+BBOX = tuple(json.loads((ROOT / "data" / "aoi" / "salzburg_bbox.json").read_text())["bbox"])
+xmin, ymin, xmax, ymax = BBOX
+
+BASE = "https://huggingface.co/datasets/kshitijrajsharma/cng-workshop-materials/resolve/main"
+
+AUSTRIA_GEOPARQUET = f"{BASE}/austria_buildings.geo.parquet"
+AUSTRIA_FGB = f"{BASE}/austria_buildings.fgb"
+AUSTRIA_PMTILES = f"{BASE}/austria_buildings.pmtiles"
+print(f"AOI bbox = {BBOX}")
+```
+
+## 1. Overture, query a planet-scale GeoParquet on S3 with SQL
+
+Overture publishes the planet as partitioned GeoParquet on a public S3 bucket. DuckDB pushes the `bbox`-struct predicate into row-group filtering. Only the row groups whose extent intersects Salzburg are fetched, the rest of the planet is skipped at the byte level.
+
+```{python}
+con = duckdb.connect()
+con.execute("INSTALL spatial; LOAD spatial;")
+con.execute("INSTALL httpfs; LOAD httpfs;")
+con.execute("SET s3_region='us-west-2';")
+
+OVERTURE = (
+    "s3://overturemaps-us-west-2/release/2026-04-15.0/"
+    "theme=places/type=place/*"
+)
+places_df = con.execute(
+    f"""
+    SELECT id, names.primary AS name, categories.primary AS category, ST_AsText(geometry) AS wkt
+    FROM read_parquet('{OVERTURE}', hive_partitioning=1)
+    WHERE bbox.xmin BETWEEN {xmin} AND {xmax}
+      AND bbox.ymin BETWEEN {ymin} AND {ymax}
+    """
+).fetchdf()
+places = gpd.GeoDataFrame(
+    places_df.drop(columns=["wkt"]),
+    geometry=gpd.GeoSeries.from_wkt(places_df["wkt"]),
+    crs="EPSG:4326",
+)
+print(f"Overture places inside Salzburg AOI = {len(places):,}")
+places.head(3)
+```
+
+## 2. GeoParquet, read the metadata first, then load directly on a map
+
+GeoParquet 1.1 keeps geo metadata (CRS, encoding, geometry column) in the parquet schema, and ships a `bbox` covering column so readers can prune row groups by spatial predicate. Look at the metadata, no feature data is fetched.
+
+```{python}
+fs, path = fsspec.url_to_fs(AUSTRIA_GEOPARQUET)
+with fs.open(path, "rb") as f:
+    pf = pq.ParquetFile(f)
+    print(f"file size      = {fs.size(path) / 1e6:.1f} MB")
+    print(f"rows           = {pf.metadata.num_rows:,}")
+    print(f"row groups     = {pf.metadata.num_row_groups}")
+    print(f"schema columns = {pf.schema_arrow.names}")
+    geo = json.loads(pf.schema_arrow.metadata[b"geo"])
+print("geo metadata:")
+print(json.dumps(geo, indent=2)[:600])
+```
+
+`gpd.read_parquet(file, bbox=...)` uses the bbox covering column to skip row groups that do not intersect. From a 1 GB+ file on HF we pull only the Salzburg row groups.
+
+```{python}
+with fs.open(path, "rb") as f:
+    buildings_gp = gpd.read_parquet(f, bbox=BBOX)
+print(f"Salzburg buildings (GeoParquet, bbox pushdown) = {len(buildings_gp):,}")
+```
+
+lonboard renders the GeoDataFrame directly via the GeoArrow-backed deck.gl pipeline
+
+```{python}
+Map([PolygonLayer.from_geopandas(buildings_gp, get_fill_color=[200, 80, 80, 160])])
+```
+
+## 3. FlatGeobuf, header + R-tree, bbox-stream over HTTP
+
+FlatGeobuf prepends a binary header (CRS, feature count, geometry type, columns) and a packed R-tree. `pyogrio.read_info(url)` reads only the header.
+
+```{python}
+info = pyogrio.read_info(AUSTRIA_FGB)
+print(f"driver         = {info['driver']}")
+print(f"feature count  = {info['features']:,}")
+print(f"geometry type  = {info['geometry_type']}")
+print(f"crs            = {info['crs']}")
+print(f"fields         = {list(info['fields'])}")
+```
+
+`bbox=` triggers an R-tree partial read, only the feature blocks intersecting the bbox are fetched. Same code path for local paths and `https://...`.
+
+```{python}
+buildings_fgb = pyogrio.read_dataframe(AUSTRIA_FGB, bbox=BBOX)
+print(f"Salzburg buildings (FGB, R-tree pushdown) = {len(buildings_fgb):,}")
+```
+
+Same Salzburg subset, two formats, two spatial indexes. Drop both onto one map alongside the Overture places.
+
+```{python}
+Map([
+    PolygonLayer.from_geopandas(buildings_fgb, get_fill_color=[80, 80, 200, 160]),
+    ScatterplotLayer.from_geopandas(
+        places, get_fill_color=[40, 160, 80, 255], radius_min_pixels=3,
+    ),
+])
+```
+
+## 4. PMTiles, one file, browser-side tile streaming
+
+PMTiles packs the entire vector-tile pyramid into a single file. A 16-byte header tells the viewer where to find each tile via HTTP range requests, no tile server, no Python.
+
+```{python}
+import urllib.request
+
+def pmtiles_source(url_or_path):
+    s = str(url_or_path)
+    if s.startswith(("http://", "https://")):
+        def get(offset, length):
+            req = urllib.request.Request(
+                s, headers={"Range": f"bytes={offset}-{offset + length - 1}"}
+            )
+            with urllib.request.urlopen(req) as resp:
+                return resp.read()
+        return get
+    return MmapSource(open(s, "rb"))  # noqa: SIM115  source held by Reader
+
+header = Reader(pmtiles_source(AUSTRIA_PMTILES)).header()
+print(f"min/max zoom   = {header['min_zoom']} .. {header['max_zoom']}")
+print(f"tile type      = {header['tile_type'].name}")
+print(f"tile compress  = {header['tile_compression'].name}")
+print(f"bounds         = ({header['min_lon_e7'] / 1e7}, {header['min_lat_e7'] / 1e7}, "
+      f"{header['max_lon_e7'] / 1e7}, {header['max_lat_e7'] / 1e7})")
+```
+
+Open the whole Austria buildings in the official viewer, the browser streams just the tiles in view:
+
+<https://pmtiles.io/?url=https://huggingface.co/datasets/kshitijrajsharma/cng-workshop-materials/resolve/main/austria_buildings.pmtiles>
+
+## Where each format shines
+
+| Format       | Indexing                        | Best for                                                 |
+| ------------ | ------------------------------- | -------------------------------------------------------- |
+| GeoParquet   | Bbox covering column, row-group pruning | Column-aware analytics, DataFrame workflows, lonboard    |
+| FlatGeobuf   | Packed R-tree at file head      | Bbox feature reads, GIS tools (QGIS, ogr2ogr, JS readers) |
+| PMTiles      | Z/X/Y directory + tile offsets  | Browser map rendering at any zoom, no server             |
+
+## References
+
+- Overture + DuckDB: <https://docs.overturemaps.org/getting-data/duckdb/>
+- GeoParquet 1.1: <https://geoparquet.org/releases/v1.1.0/>
+- FlatGeobuf: <https://flatgeobuf.org/>
+- lonboard: <https://developmentseed.org/lonboard/>
+- PMTiles: <https://docs.protomaps.com/pmtiles/>

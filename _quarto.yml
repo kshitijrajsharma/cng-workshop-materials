@@ -1,0 +1,33 @@
+project:
+  type: website
+  output-dir: _site
+  render:
+    - index.qmd
+    - slides/talk1.qmd
+    - notebooks/01_vector.qmd
+  resources:
+    - data/outputs/**
+    - assets/images/**
+
+website:
+  description: "Cloud Native Geospatial workshop materials by Kshitij Raj Sharma."
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: slides/talk1.qmd
+        text: Slides
+      - href: notebooks/01_vector.qmd
+        text: Vector
+    right:
+      - icon: github
+        href: https://github.com/kshitijrajsharma
+        aria-label: GitHub
+  page-footer:
+    left: "Kshitij Raj Sharma, CIVIS Salzburg 2026"
+    right: "Built with Quarto + RevealJS"
+
+format:
+  html:
+    theme: cosmo
+    toc: true

@@ -1,0 +1,39 @@
+---
+title: "Cloud Native Geospatial Workshop"
+subtitle: "CIVIS, Salzburg, 2026"
+---
+
+A two-session workshop by [Kshitij Raj Sharma](https://kshitijrajsharma.com.np/about/) on **Cloud Native Geospatial (CNG)**: what makes a file format "cloud native", why it matters, and how to use the current generation of formats in real workflows.
+
+## Expectations
+
+- A mental model of cloud-native data access: chunked files on object storage, HTTP range requests, predicate pushdown, no full downloads.
+- Hands-on experience with **GeoParquet**, **FlatGeobuf**, **PMTiles**, **COG**, and **Zarr**, against real planet-scale data (Overture Maps, Sentinel-2).
+- Familiarity with **STAC** as the discovery layer that ties cloud-native datasets together.
+- A working setup you can copy and reuse on your own data.
+
+## Sessions
+
+### Day 1, [Slides](slides/talk1.qmd) (45 min talk + 5 min Q&A)
+
+Cloud Native Geospatial and File Formats. The theory, the format landscape, COG vs Zarr, the four cloud-native vector formats, Geo AI, and a decision tree to pick the right format.
+
+### Day 2, hands-on notebooks (1 hour)
+
+You run these yourself, in the browser via Colab or locally with `uv`.
+
+- [**01 · Vector**](notebooks/01_vector.qmd): filter Overture's planet-scale GeoParquet on S3 with DuckDB; bbox-stream the Austria buildings dataset (1.4 GB on Hugging Face) via GeoParquet, FlatGeobuf, and PMTiles; visualise with `lonboard`.
+- **02 · Raster**: work in progress.
+
+## Running the notebooks
+
+The notebooks ship in two formats. Pick what fits.
+
+- **In your browser**: each notebook has an "Open in Colab" badge at the top, the only setup is a one-cell `pip install`.
+- **On your laptop**: clone [the repo](https://github.com/kshitijrajsharma/cng-workshop-materials), `just setup`, then run any notebook with `jupyter` or `quarto preview`.
+
+All Day 1 figures and Day 2 outputs were produced from the same Salzburg AOI (`13.02, 47.78, 13.10, 47.83`).
+
+## Speaker
+
+Kshitij Raj Sharma. Email: <krschap@proton.me>. GitHub: <https://github.com/kshitijrajsharma>. Workshop repo: <https://github.com/kshitijrajsharma/cng-workshop-materials>.

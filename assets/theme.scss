@@ -1,0 +1,41 @@
+/*-- scss:rules --*/
+
+.reveal img.speaker-photo {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center 18%;
+  border: 1px solid #ddd;
+  display: block;
+  margin: 0 auto;
+}
+
+.reveal .qr-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 40px;
+  align-items: center;
+  justify-items: center;
+}
+
+.reveal .qr-grid figure {
+  text-align: center;
+  margin: 0;
+}
+
+.reveal .qr-grid img {
+  width: 220px;
+  height: 220px;
+}
+
+.reveal .center-img img {
+  display: block;
+  margin: 0 auto;
+  max-height: 60vh;
+}
+
+.reveal .tiny {
+  font-size: 0.55em;
+  color: #888;
+}
