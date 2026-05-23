@@ -52,7 +52,7 @@ Working with GeoAI at the intersection of OpenStreetMap, Earth Observation, and 
 1. **Cloud Native Geospatial**
 2. **STAC**
 3. **CNG file formats**
-4. **COG & Zarr**
+4. **Raster formats**
 5. **Vector formats**
 6. **Geo AI**
 7. **Wrap**: decision tree + what we do tomorrow
@@ -237,7 +237,7 @@ Accept-Ranges: bytes
 :::
 :::
 
-# 4 · COG & Zarr
+# 4 · Raster formats
 
 ## Cloud Optimized GeoTIFF (COG)
 

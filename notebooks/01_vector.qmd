@@ -34,7 +34,7 @@ if "google.colab" in sys.modules:
 
 ```{python}
 import json
-from pathlib import Path
+import urllib.request
 
 import duckdb
 import fsspec
@@ -44,8 +44,9 @@ import pyogrio
 from lonboard import Map, PolygonLayer, ScatterplotLayer
 from pmtiles.reader import Reader
 
-ROOT = Path.cwd().parent if Path.cwd().name == "notebooks" else Path.cwd()
-BBOX = tuple(json.loads((ROOT / "data" / "aoi" / "salzburg_bbox.json").read_text())["bbox"])
+REPO_RAW = "https://raw.githubusercontent.com/kshitijrajsharma/cng-workshop-materials/master"
+AOI_URL = f"{REPO_RAW}/data/aoi/salzburg_bbox.json"
+BBOX = tuple(json.loads(urllib.request.urlopen(AOI_URL).read())["bbox"])
 xmin, ymin, xmax, ymax = BBOX
 
 BASE = "https://huggingface.co/datasets/kshitijrajsharma/cng-workshop-materials/resolve/main"
