@@ -19,10 +19,13 @@ format:
     preview-links: auto
     footer: "Kshitij Raj Sharma · CIVIS Salzburg 2026"
     highlight-style: github
-    include-in-header:
-      text: |
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-        <style>.bi { vertical-align: -0.12em; }</style>
+    hide-cursor-time: 5000
+    view-distance: 3
+revealjs-plugins:
+  - pointer
+filters:
+  - fontawesome
+  - iconify
 ---
 
 ## About the speaker
@@ -479,7 +482,7 @@ Built with [Quarto + RevealJS](https://quarto.org/docs/presentations/revealjs/).
 
 # Any questions? {.center}
 
-<i class="bi bi-globe-americas"></i> धन्यवाद · Thank you · Danke · Bonjour
+{{< fa globe >}} धन्यवाद · Thank you · Danke · Bonjour
 
 ::: {.qr-grid}
 ::: {}
@@ -499,4 +502,4 @@ github.com/kshitijrajsharma/cng-workshop-materials
 :::
 :::
 
-<i class="bi bi-envelope"></i> krschap@proton.me &nbsp; · &nbsp; <i class="bi bi-person"></i> Kshitij Raj Sharma
+{{< fa envelope >}} krschap@proton.me &nbsp; · &nbsp; {{< fa user >}} Kshitij Raj Sharma

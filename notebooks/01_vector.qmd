@@ -8,11 +8,19 @@ format:
     toc: true
     code-fold: false
     code-tools: true
+    code-line-numbers: true
+    code-overflow: wrap
+    code-copy: true
+    df-print: paged
+    link-external-icon: true
+    link-external-newwindow: true
+    smooth-scroll: true
     embed-resources: true
 execute:
   echo: true
   warning: false
   cache: false
+  freeze: auto
 jupyter: python3
 ---
 
@@ -108,7 +116,7 @@ with fs.open(path, "rb") as f:
     print(f"schema columns = {pf.schema_arrow.names}")
     geo = json.loads(pf.schema_arrow.metadata[b"geo"])
 print("geo metadata:")
-print(json.dumps(geo, indent=2)[:600])
+print(json.dumps(geo, indent=2))
 ```
 
 `gpd.read_parquet(file, bbox=...)` uses the bbox covering column to skip row groups that do not intersect. From a 1 GB+ file on HF we pull only the Salzburg row groups.
