@@ -5,6 +5,7 @@ project:
     - index.qmd
     - slides/talk1.qmd
     - notebooks/01_vector.qmd
+    - notebooks/02_raster.qmd
   resources:
     - data/outputs/**
     - assets/images/**
@@ -19,6 +20,8 @@ website:
         text: Slides
       - href: notebooks/01_vector.qmd
         text: Vector
+      - href: notebooks/02_raster.qmd
+        text: Raster
     right:
       - icon: github
         href: https://github.com/kshitijrajsharma
