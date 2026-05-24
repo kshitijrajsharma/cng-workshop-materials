@@ -513,4 +513,4 @@ github.com/kshitijrajsharma/cng-workshop-materials
 :::
 :::
 
-{{< fa envelope >}} krschap@proton.me &nbsp; · &nbsp; {{< fa user >}} Kshitij Raj Sharma
+{{< fa envelope >}} krschap@proton.me

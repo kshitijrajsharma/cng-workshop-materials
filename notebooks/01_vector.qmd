@@ -1,7 +1,6 @@
 ---
 title: "Vector data, hands-on"
 subtitle: "GeoParquet, FlatGeobuf, PMTiles, and an embeddings bonus, all on the same Salzburg AOI"
-author: "Kshitij Raj Sharma"
 date: today
 format:
   html:
@@ -16,6 +15,7 @@ format:
     link-external-newwindow: true
     smooth-scroll: true
     embed-resources: true
+    html-table-processing: none
 execute:
   echo: true
   warning: false

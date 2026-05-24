@@ -11,7 +11,7 @@ project:
     - assets/images/**
 
 website:
-  description: "Cloud Native Geospatial workshop materials by Kshitij Raj Sharma."
+  description: "Cloud Native Geospatial workshop materials."
   navbar:
     left:
       - href: index.qmd
@@ -31,6 +31,8 @@ website:
   page-footer:
     left: "Kshitij Raj Sharma, CIVIS Salzburg 2026"
     right: "Built with Quarto + RevealJS"
+
+author: "Kshitij Raj Sharma"
 
 format:
   html:

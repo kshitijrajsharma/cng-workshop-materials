@@ -9,6 +9,8 @@ A two-session workshop by [Kshitij Raj Sharma](https://kshitijrajsharma.com.np/a
 
 Geospatial files used to be downloaded whole, then cropped. Cloud Native Geospatial flips that: the file stays on object storage (S3, R2, Hugging Face, ...) and the client uses **HTTP range requests** to fetch only the bytes inside the area of interest. A 1.4 GB file plus a small AOI now costs hundreds of kB on the wire instead of the whole 1.4 GB. The trick is to use file formats designed for it (**COG, Zarr, GeoParquet, FlatGeobuf, PMTiles**) and a discovery layer that knows how to find them (**STAC**).
 
+For the canonical depth, written by the people building these formats, the [**Cloud-Optimized Geospatial Formats Guide**](https://guide.cloudnativegeo.org/) by the [Cloud Native Geospatial Forum](https://cloudnativegeo.org/) is the reference. It is structured per format, opinionated about best practice, and carries the working [glossary](https://guide.cloudnativegeo.org/glossary.html) for every term you will hit.
+
 ## How to use this site
 
 - **First time here?** Read the [Day 1 slides](slides/talk1.qmd) end-to-end. They define each term, show one canonical example per format, and finish with a decision tree for picking the right one.

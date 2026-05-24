@@ -1,7 +1,6 @@
 ---
 title: "Raster data, hands-on"
 subtitle: "Same Salzburg AOI, three cloud-native access patterns to Sentinel-2, plus two NDVI datacubes over the growing season"
-author: "Kshitij Raj Sharma"
 date: today
 format:
   html:
@@ -16,6 +15,7 @@ format:
     link-external-newwindow: true
     smooth-scroll: true
     embed-resources: true
+    html-table-processing: none
 execute:
   echo: true
   warning: false
