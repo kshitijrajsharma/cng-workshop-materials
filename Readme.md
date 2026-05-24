@@ -24,4 +24,4 @@ Python via `uv` (`package = false`), Quarto 1.9+, `just`, `ruff`.
 
 ## Deployment
 
-[.github/workflows/publish.yml](.github/workflows/publish.yml) builds and deploys to GitHub Pages on push to `master`. CI relies on the committed `_freeze/` cache to skip notebook re-execution; delete a notebook's freeze dir to force a clean re-run.
+[.github/workflows/publish.yml](.github/workflows/publish.yml) builds and deploys to GitHub Pages on push to `master`. Notebooks re-execute on every CI run (no cache, no freeze), so any source change is reflected immediately.

@@ -19,8 +19,8 @@ format:
 execute:
   echo: true
   warning: false
-  cache: true
-  freeze: auto
+  cache: false
+  freeze: false
 jupyter: python3
 ---
 

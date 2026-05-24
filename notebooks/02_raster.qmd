@@ -19,8 +19,8 @@ format:
 execute:
   echo: true
   warning: false
-  cache: true
-  freeze: auto
+  cache: false
+  freeze: false
 jupyter: python3
 ---
 
@@ -39,6 +39,7 @@ jupyter: python3
 ```{python}
 %matplotlib inline
 import json
+import os
 import time
 import urllib.request
 from pathlib import Path
@@ -287,8 +288,6 @@ Same date window, same AOI, same Sentinel-2 source, but the per-date NDVI is com
 ```{python}
 vg_ts_dir = OUT / "vg_ts_ndvi"
 vg_ts_dir.mkdir(parents=True, exist_ok=True)
-
-import os
 
 t0 = time.perf_counter()
 proc = VirtughanProcessor(
