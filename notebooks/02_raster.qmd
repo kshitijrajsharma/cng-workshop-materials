@@ -33,7 +33,7 @@ jupyter: python3
 ```{python}
 #| eval: false
 # Uncomment and run this cell once if you are on Colab or a fresh kernel.
-# !pip install -q pystac-client rioxarray xarray "zarr>=3" virtughan matplotlib pyproj shapely pandas aiohttp fsspec  # noqa: E501
+# !pip install pystac-client rioxarray xarray "zarr>=3" virtughan matplotlib pyproj shapely pandas aiohttp fsspec  # noqa: E501
 ```
 
 ```{python}

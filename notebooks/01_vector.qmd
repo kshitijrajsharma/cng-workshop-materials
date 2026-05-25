@@ -33,7 +33,7 @@ jupyter: python3
 ```{python}
 #| eval: false
 # Uncomment and run this cell once if you are on Colab or a fresh kernel.
-# !pip install -q duckdb geopandas pyogrio lonboard shapely pmtiles pyarrow xarray zarr s3fs scipy fsspec  # noqa: E501
+# !pip install duckdb geopandas pyogrio lonboard shapely pmtiles pyarrow xarray zarr s3fs scipy fsspec  # noqa: E501
 ```
 
 ```{python}
