@@ -198,7 +198,7 @@ Open the whole Austria buildings in the official viewer, the browser streams jus
 
 An **embedding** is a learned vector that summarises what's in a pixel (or feature). Two pixels with similar land cover get similar vectors, so distance in vector space approximates similarity on the ground. [Alpha Earth Foundations](https://geoembeddings.org/tutorials/xarray_geospatial_embeddings_intro.html) publishes 64-dimensional embeddings for every 10 m Sentinel-2 pixel on Earth, packaged as a public **Zarr v3** on Source Cooperative S3. Physical shards of `(1, 64, 4096, 4096)` (~1 GiB raw int8 each) wrap a grid of `(1, 64, 256, 256)` logical chunks (~4 MiB), so a small AOI never pulls the whole shard.
 
-Open the store with `obstore` (direct S3 byte ranges) and let `zarr-python` do the chunk-level reads, exactly as the tutorial does.
+Open the store with `obstore` (direct S3 byte ranges) and let `zarr-python` do the chunk-level reads, exactly as the tutorial does. `read_aoi` wraps the bbox-to-pixel-index math through the affine transform on the group attrs; `y` is descending (north to south), hence `ymax` maps to the top of the slice. We stride by 4 (~40 m) to keep the array small for Colab. `pixel_layer` is the lonboard layer we will reuse on every map.
 
 ```{python}
 import math
@@ -206,56 +206,112 @@ import math
 import numpy as np
 import zarr
 from obstore.store import S3Store
-from scipy.cluster.vq import kmeans2
+from scipy.cluster.vq import kmeans2, vq
 from zarr.storage import ObjectStore
 
 AEF = "s3://us-west-2.opendata.source.coop/tge-labs/aef-mosaic/"
 store = S3Store.from_url(AEF, skip_signature=True, region="us-west-2")
 g = zarr.open_group(store=ObjectStore(store, read_only=True), mode="r")
 emb = g["embeddings"]
+dx, _, x_origin, _, dy, y_origin = g.attrs["spatial:transform"]
+
+
+def read_aoi(bbox, stride=4):
+    """bbox -> (flat (n, 64) float32 embeddings, flat lon, flat lat) for the most recent year."""
+    xmn, ymn, xmx, ymx = bbox
+    x0 = math.floor((xmn - x_origin) / dx)
+    x1 = math.ceil((xmx - x_origin) / dx)
+    y0 = math.floor((ymx - y_origin) / dy)
+    y1 = math.ceil((ymn - y_origin) / dy)
+    block = emb[-1, :, y0:y1:stride, x0:x1:stride]
+    flat = block.transpose(1, 2, 0).astype(np.float32).reshape(-1, 64)
+    xs = x_origin + (x0 + np.arange(0, x1 - x0, stride)) * dx
+    ys = y_origin + (y0 + np.arange(0, y1 - y0, stride)) * dy
+    yy, xx = np.meshgrid(ys, xs, indexing="ij")
+    return flat, xx.ravel(), yy.ravel()
+
+
+def pixel_layer(lon, lat, labels, palette, radius=1):
+    return ScatterplotLayer.from_geopandas(
+        gpd.GeoDataFrame(geometry=gpd.points_from_xy(lon, lat), crs="EPSG:4326"),
+        get_fill_color=palette[labels],
+        radius_min_pixels=radius, pickable=False, auto_highlight=False,
+    )
+
+
 print(f"shape  = {emb.shape}   dtype = {emb.dtype}")
 print(f"chunks = {emb.chunks}   shards = {emb.shards}")
 ```
 
-Map the Salzburg bbox to pixel indices through the affine transform on the group attrs, then index the array directly. `y` is descending (north to south), so `ymax` maps to the top of the slice. We stride by 4 (~40 m) to keep the array small for Colab.
+Cluster the Salzburg per-pixel embedding vectors into 5 groups and colour by cluster on lonboard.
 
 ```{python}
-dx, _, x_origin, _, dy, y_origin = g.attrs["spatial:transform"]
-x0, x1 = math.floor((xmin - x_origin) / dx), math.ceil((xmax - x_origin) / dx)
-y0, y1 = math.floor((ymax - y_origin) / dy), math.ceil((ymin - y_origin) / dy)
-STRIDE = 4
-salzburg_emb = emb[-1, :, y0:y1:STRIDE, x0:x1:STRIDE]  # (band, y, x), most recent year
-print(f"shape = {salzburg_emb.shape}, MB = {salzburg_emb.nbytes / 1e6:.2f}")
-```
-
-Cluster the per-pixel embedding vectors into 5 groups, then map each pixel back to its (lon, lat) and colour by cluster on lonboard.
-
-```{python}
-arr = salzburg_emb.transpose(1, 2, 0).astype(np.float32)  # (y, x, band)
-flat = arr.reshape(-1, arr.shape[-1])
+flat, slon, slat = read_aoi(BBOX)
 _, labels = kmeans2(flat, 5, seed=0, minit="++")
-
-xs = x_origin + (x0 + np.arange(0, x1 - x0, STRIDE)) * dx
-ys = y_origin + (y0 + np.arange(0, y1 - y0, STRIDE)) * dy
-yy, xx = np.meshgrid(ys, xs, indexing="ij")
-pixels = gpd.GeoDataFrame(
-    {"cluster": labels},
-    geometry=gpd.points_from_xy(xx.ravel(), yy.ravel()),
-    crs="EPSG:4326",
-)
-
 palette = np.array([
     [230, 25, 75], [60, 180, 75], [255, 195, 0], [0, 130, 200], [245, 130, 48],
 ], dtype=np.uint8)
+print(f"Salzburg pixels = {len(flat):,}  ({flat.nbytes / 1e6:.2f} MB)")
+Map([pixel_layer(slon, slat, labels, palette)])
+```
+
+### Training GeoAI model zarr embeedings cube
+
+The k-means above is unsupervised: it finds five groups but does not name them. To put `vegetation` or `water` labels on the output we hand-pick a couple of example pixels per class, average their 64-D embeddings into one prototype per class, and reuse `vq` for inference. The whole model is `(n_classes, 64)` floats, ~200 numbers for 3 classes.
+
+```{python}
+TRAINING = {
+    "water":      [(13.044, 47.800), (13.044, 47.795)],   # Salzach river
+    "vegetation": [(13.058, 47.803), (13.063, 47.825)],   # Kapuzinerberg, northern forest
+    "urban":      [(13.046, 47.813), (13.046, 47.800)],   # Hauptbahnhof, old town
+}
+
+
+def emb_at(lon, lat):
+    xi = math.floor((lon - x_origin) / dx)
+    yi = math.floor((lat - y_origin) / dy)
+    return emb[-1, :, yi, xi].astype(np.float32)
+
+
+classes = list(TRAINING)
+prototypes = np.array(
+    [np.mean([emb_at(lon, lat) for lon, lat in pts], axis=0) for pts in TRAINING.values()]
+)
+class_colors = np.array(
+    [[0, 130, 200], [60, 180, 75], [230, 25, 75]],   # water, vegetation, urban
+    dtype=np.uint8,
+)
+print(f"prototypes = {prototypes.shape} ({prototypes.size} params)")
+```
+
+The model is a **nearest class prototype** classifier (aka nearest centroid): one 64-D mean per class, 192 numbers for 3 classes.
+
+```{python}
+s_idx, _ = vq(flat, prototypes)
+print({c: f"{100 * (s_idx == j).mean():.1f}%" for j, c in enumerate(classes)})
+
+train_lon = [lon for pts in TRAINING.values() for lon, _ in pts]
+train_lat = [lat for pts in TRAINING.values() for _, lat in pts]
+train_cls = np.array([j for j, pts in enumerate(TRAINING.values()) for _ in pts])
+
 Map([
+    pixel_layer(slon, slat, s_idx, class_colors),
     ScatterplotLayer.from_geopandas(
-        pixels,
-        get_fill_color=palette[pixels.cluster.values],
-        radius_min_pixels=1,
-        pickable=False,
-        auto_highlight=False,
+        gpd.GeoDataFrame(geometry=gpd.points_from_xy(train_lon, train_lat), crs="EPSG:4326"),
+        get_fill_color=class_colors[train_cls],
+        stroked=True, get_line_color=[0, 0, 0],
+        line_width_min_pixels=2, radius_min_pixels=8,
     ),
 ])
+```
+
+Apply the same prototypes to Innsbruck.
+
+```{python}
+i_flat, ilon, ilat = read_aoi((11.34, 47.24, 11.46, 47.30))
+i_idx, _ = vq(i_flat, prototypes)
+print({c: f"{100 * (i_idx == j).mean():.1f}%" for j, c in enumerate(classes)})
+Map([pixel_layer(ilon, ilat, i_idx, class_colors)])
 ```
 
 ## References
