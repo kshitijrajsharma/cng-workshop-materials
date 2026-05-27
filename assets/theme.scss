@@ -26,16 +26,28 @@
   gap: 40px;
   align-items: center;
   justify-items: center;
+  max-width: 700px;
+  margin: 0.5em auto 0;
 }
 
-.reveal .qr-grid figure {
+.reveal .qr-grid figure,
+.reveal .qr-grid > div {
   text-align: center;
   margin: 0;
 }
 
 .reveal .qr-grid img {
-  width: 220px;
-  height: 220px;
+  width: 200px !important;
+  height: 200px !important;
+  max-width: 200px !important;
+  max-height: 200px !important;
+  object-fit: contain;
+}
+
+.reveal section.has-light-background h1,
+.reveal section.center h1 {
+  font-size: 2.2em;
+  margin-bottom: 0.4em;
 }
 
 .reveal .center-img img {
