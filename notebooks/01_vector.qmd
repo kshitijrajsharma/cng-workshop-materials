@@ -210,14 +210,22 @@ print(emb)
 
 Slice to the Salzburg AOI for the most recent year.
 
+::: {.callout-note}
+We trim to **16 of 64 bands** and decimate **every 4th pixel** to keep the in-memory array small enough for Colab. For a larger AOI or a higher-fidelity cluster, raise `band=slice(0, 64)` and drop the stride to `step=1` or `step=2`
+:::
+
 ```{python}
 salzburg_emb = (
     emb.sel(time=2024, x=slice(xmin, xmax), y=slice(ymax, ymin))
+    .isel(band=slice(0, 16))
     .transpose("y", "x", "band")
-    .isel(y=slice(None, None, 2), x=slice(None, None, 2))
+    .isel(y=slice(None, None, 4), x=slice(None, None, 4))
     .load()
 )
-print(f"dims = {salzburg_emb.dims}, shape = {salzburg_emb.shape}")
+print(
+    f"dims = {salzburg_emb.dims}, shape = {salzburg_emb.shape}, "
+    f"MB = {salzburg_emb.nbytes / 1e6:.1f}"
+)
 ```
 
 Cluster the per-pixel embedding vectors into 5 groups, then map each pixel back to its (lon, lat) and colour by cluster on lonboard.
