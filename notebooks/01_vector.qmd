@@ -240,7 +240,9 @@ Map([
     ScatterplotLayer.from_geopandas(
         pixels,
         get_fill_color=palette[pixels.cluster.values],
-        radius_min_pixels=3,
+        radius_min_pixels=1,
+        pickable=False,
+        auto_highlight=False,
     ),
 ])
 ```

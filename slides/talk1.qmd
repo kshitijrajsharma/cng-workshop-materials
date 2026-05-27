@@ -1,6 +1,6 @@
 ---
 title: "Cloud Native Geospatial and File Formats"
-subtitle: "Day 1 · CIVIS Salzburg 2026 · 45 min + 5 min Q&A"
+subtitle: "Day 1 · CIVIS Salzburg 2026 · 40 min + 5 min Q&A"
 author: "Kshitij Raj Sharma"
 date: today
 format:
@@ -34,15 +34,17 @@ filters:
 :::: {.columns}
 
 ::: {.column width="30%"}
-<img src="../assets/images/photo.png" class="speaker-photo">
+<div class="speaker-photo-wrap"><img src="../assets/images/photo.png" alt="Kshitij Raj Sharma" data-lightbox="false"></div>
 :::
 
 ::: {.column width="70%"}
 **Kshitij Raj Sharma**
 
-Open Source GIS Developer, author of [VirtuGhan](https://github.com/virtughan/virtughan) & other libraries.
+Open Source GeoSpatial Developer
 
-Working with GeoAI at the intersection of OpenStreetMap, Earth Observation, and cloud-native data formats. Passionate about developing software that benefits humankind.
+CDE Student , AI Engineer at HOTOSM. 8+ years working with planet-scale OpenStreetMap, Overture Maps, and large-scale aerial imagery. Experience with developing on & with multiple STAC catalogs
+
+Author of [VirtuGhan](https://github.com/virtughan/virtughan) and other several open-source geospatial tools, focused on GeoAI at the intersection of OSM, Earth Observation, and cloud-native data formats.
 
 - krschap@proton.me
 - [github.com/kshitijrajsharma](https://github.com/kshitijrajsharma)
@@ -68,11 +70,15 @@ Working with GeoAI at the intersection of OpenStreetMap, Earth Observation, and 
 > "Geospatial data is experiencing **exponential growth** in both size and complexity. Traditional data access methods, such as file downloads, have become increasingly impractical for achieving scientific objectives."
 
 ::: {.fragment}
-**Concrete numbers (2024 Copernicus Annual Report)**: the seven Copernicus Sentinels generate roughly **50 TB of data every day**. The Copernicus Data Space Ecosystem now holds **80 PB online** across **100M+ Sentinel products**.
+The Sentinel satellites alone produce **~20 TB of raw data every day**. After processing, ESA disseminates **~250 TB of Sentinel products per day** for services to society. The Copernicus Data Space Ecosystem's published archive has now crossed **78 PB**, growing by terabytes every hour.
+:::
+
+::: {.fragment}
+That is one programme. Add commercial constellations, drone fleets, OpenStreetMap, lidar, and every model that produces its own derived layers, and "download the file, then crop" stops being a sensible default.
 :::
 
 ::: footer
-Sources: <https://guide.cloudnativegeo.org/> · [CDSE Annual Report 2024](https://dataspace.copernicus.eu/news/2025-12-4-copernicus-data-space-ecosystem-cdse-releases-annual-report-2024) · [ESA Belém 2025](https://eo4society.esa.int/wp-content/uploads/2025/02/3_CDSE_Belem.pdf)
+Sources: <https://guide.cloudnativegeo.org/> · [ESA Belém 2025](https://eo4society.esa.int/wp-content/uploads/2025/02/3_CDSE_Belem.pdf) · [CDSE Annual Report 2024](https://dataspace.copernicus.eu/news/2025-12-4-copernicus-data-space-ecosystem-cdse-releases-annual-report-2024)
 :::
 
 ## Why traditional methods fail
@@ -95,6 +101,10 @@ Sources: <https://guide.cloudnativegeo.org/> · NASA Task 51 Cloud-Optimized For
 - **Scalability.** Object storage is infinitely scalable and serves many parallel reads.
 - **Flexibility.** Query and filter on the server side, only the bytes you asked for are returned.
 - **Cost-effectiveness.** Less data transfer, less storage, more compression options.
+:::
+
+::: {.callout-warning}
+**Storing data in the cloud does not, on its own, solve geospatial's data problems.** The file format itself has to be designed for partial reads, otherwise you are back to downloading whole scenes from a more expensive disk.
 :::
 
 ::: footer
@@ -121,15 +131,35 @@ Source: <https://guide.cloudnativegeo.org/>
 **Cloud native**
 
 ::: incremental
-1. STAC search by AOI + time
-2. HTTP range read of chunks you need
-3. Compute immediately
+1. Find the source for your AOI + time window
+2. Read only the chunks you need
+3. Compute on the fly
+4. Get the results
 :::
 
 ::: {.fragment}
 The "shipping" step disappears.
 :::
 :::
+:::
+
+## Metadata is the key
+
+Describing the data itself is important for discovery, but also for efficient access. A cloud-optimized format is designed so that:
+
+::: incremental
+- Metadata or a spec provides addresses for the data blocks.
+- Metadata sits in a known location, in a consistent format.
+- All metadata loads in a single read.
+- Libraries use that metadata to fetch subsets via addressable chunks, internal tiling, or both.
+:::
+
+::: {.fragment}
+Parallel reads, partial reads, no subsetting service in the middle. The format itself does the work, and a catalog can describe it. That catalog is **STAC**.
+:::
+
+::: footer
+Source: [Cloud-Optimized Geospatial Formats Guide, "The Opportunity"](https://guide.cloudnativegeo.org/)
 :::
 
 # 2 · STAC
