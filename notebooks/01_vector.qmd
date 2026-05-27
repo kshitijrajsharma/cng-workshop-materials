@@ -33,7 +33,7 @@ jupyter: python3
 ```{python}
 #| eval: false
 # Uncomment and run this cell once if you are on Colab or a fresh kernel.
-# !pip install duckdb geopandas pyogrio lonboard shapely pmtiles pyarrow xarray zarr s3fs scipy fsspec  # noqa: E501
+# !pip install duckdb geopandas pyogrio lonboard shapely pmtiles pyarrow zarr obstore scipy fsspec  # noqa: E501
 ```
 
 ```{python}
@@ -196,48 +196,51 @@ Open the whole Austria buildings in the official viewer, the browser streams jus
 
 ## Bonus: the same trick on ML embeddings
 
-An **embedding** is a learned vector that summarises what's in a pixel (or feature). Two pixels with similar land cover get similar vectors, so distance in vector space approximates similarity on the ground. [Alpha Earth Foundations](https://geoembeddings.org/tutorials/xarray_geospatial_embeddings_intro.html) publishes 64-dimensional embeddings for every 10 m Sentinel-2 pixel on Earth, packaged as a public **Zarr** on Source Cooperative S3. Same cloud-native pattern as everything above: `xr.open_zarr` opens it without download, slicing fetches only the chunks for our AOI. We then run k-means with k=5 to ask "group pixels into five land-cover-ish clusters by their embedding vectors, then colour the map by cluster".
+An **embedding** is a learned vector that summarises what's in a pixel (or feature). Two pixels with similar land cover get similar vectors, so distance in vector space approximates similarity on the ground. [Alpha Earth Foundations](https://geoembeddings.org/tutorials/xarray_geospatial_embeddings_intro.html) publishes 64-dimensional embeddings for every 10 m Sentinel-2 pixel on Earth, packaged as a public **Zarr v3** on Source Cooperative S3. Physical shards of `(1, 64, 4096, 4096)` (~1 GiB raw int8 each) wrap a grid of `(1, 64, 256, 256)` logical chunks (~4 MiB), so a small AOI never pulls the whole shard.
+
+Open the store with `obstore` (direct S3 byte ranges) and let `zarr-python` do the chunk-level reads, exactly as the tutorial does.
 
 ```{python}
+import math
+
 import numpy as np
-import xarray as xr
+import zarr
+from obstore.store import S3Store
 from scipy.cluster.vq import kmeans2
+from zarr.storage import ObjectStore
 
 AEF = "s3://us-west-2.opendata.source.coop/tge-labs/aef-mosaic/"
-emb = xr.open_zarr(AEF, storage_options={"anon": True}, consolidated=False)["embeddings"]
-print(emb)
+store = S3Store.from_url(AEF, skip_signature=True, region="us-west-2")
+g = zarr.open_group(store=ObjectStore(store, read_only=True), mode="r")
+emb = g["embeddings"]
+print(f"shape  = {emb.shape}   dtype = {emb.dtype}")
+print(f"chunks = {emb.chunks}   shards = {emb.shards}")
 ```
 
-Slice to the Salzburg AOI for the most recent year.
-
-::: {.callout-note}
-We trim to **16 of 64 bands** and decimate **every 4th pixel** to keep the in-memory array small enough for Colab. For a larger AOI or a higher-fidelity cluster, raise `band=slice(0, 64)` and drop the stride to `step=1` or `step=2`
-:::
+Map the Salzburg bbox to pixel indices through the affine transform on the group attrs, then index the array directly. `y` is descending (north to south), so `ymax` maps to the top of the slice. We stride by 4 (~40 m) to keep the array small for Colab.
 
 ```{python}
-salzburg_emb = (
-    emb.sel(time=2024, x=slice(xmin, xmax), y=slice(ymax, ymin))
-    .isel(band=slice(0, 16))
-    .transpose("y", "x", "band")
-    .isel(y=slice(None, None, 4), x=slice(None, None, 4))
-    .load()
-)
-print(
-    f"dims = {salzburg_emb.dims}, shape = {salzburg_emb.shape}, "
-    f"MB = {salzburg_emb.nbytes / 1e6:.1f}"
-)
+dx, _, x_origin, _, dy, y_origin = g.attrs["spatial:transform"]
+x0, x1 = math.floor((xmin - x_origin) / dx), math.ceil((xmax - x_origin) / dx)
+y0, y1 = math.floor((ymax - y_origin) / dy), math.ceil((ymin - y_origin) / dy)
+STRIDE = 4
+salzburg_emb = emb[-1, :, y0:y1:STRIDE, x0:x1:STRIDE]  # (band, y, x), most recent year
+print(f"shape = {salzburg_emb.shape}, MB = {salzburg_emb.nbytes / 1e6:.2f}")
 ```
 
 Cluster the per-pixel embedding vectors into 5 groups, then map each pixel back to its (lon, lat) and colour by cluster on lonboard.
 
 ```{python}
-flat = salzburg_emb.values.reshape(-1, salzburg_emb.shape[-1]).astype(np.float32)
+arr = salzburg_emb.transpose(1, 2, 0).astype(np.float32)  # (y, x, band)
+flat = arr.reshape(-1, arr.shape[-1])
 _, labels = kmeans2(flat, 5, seed=0, minit="++")
 
-ys, xs = np.meshgrid(salzburg_emb.y.values, salzburg_emb.x.values, indexing="ij")
+xs = x_origin + (x0 + np.arange(0, x1 - x0, STRIDE)) * dx
+ys = y_origin + (y0 + np.arange(0, y1 - y0, STRIDE)) * dy
+yy, xx = np.meshgrid(ys, xs, indexing="ij")
 pixels = gpd.GeoDataFrame(
     {"cluster": labels},
-    geometry=gpd.points_from_xy(xs.ravel(), ys.ravel()),
+    geometry=gpd.points_from_xy(xx.ravel(), yy.ravel()),
     crs="EPSG:4326",
 )
 
