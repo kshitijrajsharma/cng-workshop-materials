@@ -33,7 +33,7 @@ jupyter: python3
 ```{python}
 #| eval: false
 # Uncomment and run this cell once if you are on Colab or a fresh kernel.
-# !pip install duckdb geopandas pyogrio lonboard shapely pmtiles pyarrow zarr obstore scipy fsspec  # noqa: E501
+# !pip install duckdb geopandas pyogrio lonboard shapely pmtiles pyarrow zarr obstore scipy scikit-learn fsspec  # noqa: E501
 ```
 
 ```{python}
@@ -206,7 +206,8 @@ import math
 import numpy as np
 import zarr
 from obstore.store import S3Store
-from scipy.cluster.vq import kmeans2, vq
+from scipy.cluster.vq import kmeans2
+from sklearn.linear_model import LogisticRegression
 from zarr.storage import ObjectStore
 
 AEF = "s3://us-west-2.opendata.source.coop/tge-labs/aef-mosaic/"
@@ -257,7 +258,7 @@ Map([pixel_layer(slon, slat, labels, palette)])
 
 ### Training GeoAI model zarr embeedings cube
 
-The k-means above is unsupervised: it finds five groups but does not name them. To put `vegetation` or `water` labels on the output we hand-pick a couple of example pixels per class, average their 64-D embeddings into one prototype per class, and reuse `vq` for inference. The whole model is `(n_classes, 64)` floats, ~200 numbers for 3 classes.
+The k-means above is unsupervised: it finds five groups but does not name them. To put `vegetation` or `water` labels on the output we hand-pick a couple of example pixels per class. First, render the training points on a basemap
 
 ```{python}
 TRAINING = {
@@ -265,37 +266,17 @@ TRAINING = {
     "vegetation": [(13.058, 47.803), (13.063, 47.825)],   # Kapuzinerberg, northern forest
     "urban":      [(13.046, 47.813), (13.046, 47.800)],   # Hauptbahnhof, old town
 }
-
-
-def emb_at(lon, lat):
-    xi = math.floor((lon - x_origin) / dx)
-    yi = math.floor((lat - y_origin) / dy)
-    return emb[-1, :, yi, xi].astype(np.float32)
-
-
 classes = list(TRAINING)
-prototypes = np.array(
-    [np.mean([emb_at(lon, lat) for lon, lat in pts], axis=0) for pts in TRAINING.values()]
-)
 class_colors = np.array(
     [[0, 130, 200], [60, 180, 75], [230, 25, 75]],   # water, vegetation, urban
     dtype=np.uint8,
 )
-print(f"prototypes = {prototypes.shape} ({prototypes.size} params)")
-```
-
-The model is a **nearest class prototype** classifier (aka nearest centroid): one 64-D mean per class, 192 numbers for 3 classes.
-
-```{python}
-s_idx, _ = vq(flat, prototypes)
-print({c: f"{100 * (s_idx == j).mean():.1f}%" for j, c in enumerate(classes)})
 
 train_lon = [lon for pts in TRAINING.values() for lon, _ in pts]
 train_lat = [lat for pts in TRAINING.values() for _, lat in pts]
 train_cls = np.array([j for j, pts in enumerate(TRAINING.values()) for _ in pts])
 
 Map([
-    pixel_layer(slon, slat, s_idx, class_colors),
     ScatterplotLayer.from_geopandas(
         gpd.GeoDataFrame(geometry=gpd.points_from_xy(train_lon, train_lat), crs="EPSG:4326"),
         get_fill_color=class_colors[train_cls],
@@ -305,13 +286,30 @@ Map([
 ])
 ```
 
-Apply the same prototypes to Innsbruck.
+Train **logistic regression** on those points. Look up the 64-D embedding at each labeled coordinate, stack into `X`, fit. The model is `clf.coef_: (3, 64)` plus `clf.intercept_: (3,)` = **195 floats**. `LogisticRegression` minimises L2-regularised cross-entropy
 
 ```{python}
-i_flat, ilon, ilat = read_aoi((11.34, 47.24, 11.46, 47.30))
-i_idx, _ = vq(i_flat, prototypes)
-print({c: f"{100 * (i_idx == j).mean():.1f}%" for j, c in enumerate(classes)})
-Map([pixel_layer(ilon, ilat, i_idx, class_colors)])
+def emb_at(lon, lat):
+    xi = math.floor((lon - x_origin) / dx)
+    yi = math.floor((lat - y_origin) / dy)
+    return emb[-1, :, yi, xi].astype(np.float32)
+
+X = np.array([emb_at(lon, lat) for pts in TRAINING.values() for lon, lat in pts])
+y = np.array([j for j, pts in enumerate(TRAINING.values()) for _ in pts])
+clf = LogisticRegression(max_iter=1000).fit(X, y)
+print(
+    f"coef = {clf.coef_.shape}  bias = {clf.intercept_.shape}  "
+    f"train acc = {clf.score(X, y):.0%}"
+)
+```
+
+Predict on a fresh box just south of the training AOI (small-town buildings it has never seen at these coordinates). `clf.predict` returns the index of the most-likely class for each pixel.
+
+```{python}
+t_flat, tlon, tlat = read_aoi((13.04, 47.74, 13.12, 47.78))
+t_idx = clf.predict(t_flat)
+print({c: f"{100 * (t_idx == j).mean():.1f}%" for j, c in enumerate(classes)})
+Map([pixel_layer(tlon, tlat, t_idx, class_colors)])
 ```
 
 ## References

@@ -21,6 +21,7 @@ dependencies = [
     "rasterio>=1.5.0",
     "rioxarray>=0.22.0",
     "s3fs>=2026.4.0",
+    "scikit-learn>=1.8.0",
     "scipy>=1.17.1",
     "shapely>=2.1.2",
     "virtughan>=1.0.2",
