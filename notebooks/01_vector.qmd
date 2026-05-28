@@ -198,7 +198,6 @@ Open the whole Austria buildings in the official viewer, the browser streams jus
 
 An **embedding** is a learned vector that summarises what's in a pixel (or feature). Two pixels with similar land cover get similar vectors, so distance in vector space approximates similarity on the ground. [Alpha Earth Foundations](https://geoembeddings.org/tutorials/xarray_geospatial_embeddings_intro.html) publishes 64-dimensional embeddings for every 10 m Sentinel-2 pixel on Earth, packaged as a public **Zarr v3** on Source Cooperative S3. Physical shards of `(1, 64, 4096, 4096)` (~1 GiB raw int8 each) wrap a grid of `(1, 64, 256, 256)` logical chunks (~4 MiB), so a small AOI never pulls the whole shard.
 
-Open the store with `obstore` (direct S3 byte ranges) and let `zarr-python` do the chunk-level reads, exactly as the tutorial does. `read_aoi` wraps the bbox-to-pixel-index math through the affine transform on the group attrs; `y` is descending (north to south), hence `ymax` maps to the top of the slice. We stride by 4 (~40 m) to keep the array small for Colab. `pixel_layer` is the lonboard layer we will reuse on every map.
 
 ```{python}
 import math
@@ -239,7 +238,9 @@ def pixel_layer(lon, lat, labels, palette, radius=1):
         radius_min_pixels=radius, pickable=False, auto_highlight=False,
     )
 
+```
 
+```{python}
 print(f"shape  = {emb.shape}   dtype = {emb.dtype}")
 print(f"chunks = {emb.chunks}   shards = {emb.shards}")
 ```
@@ -247,11 +248,15 @@ print(f"chunks = {emb.chunks}   shards = {emb.shards}")
 Cluster the Salzburg per-pixel embedding vectors into 5 groups and colour by cluster on lonboard.
 
 ```{python}
+red    = (230, 25, 75)
+green  = (60, 180, 75)
+yellow = (255, 195, 0)
+blue   = (0, 130, 200)
+orange = (245, 130, 48)
+palette = np.array([red, green, yellow, blue, orange], dtype=np.uint8)
+
 flat, slon, slat = read_aoi(BBOX)
 _, labels = kmeans2(flat, 5, seed=0, minit="++")
-palette = np.array([
-    [230, 25, 75], [60, 180, 75], [255, 195, 0], [0, 130, 200], [245, 130, 48],
-], dtype=np.uint8)
 print(f"Salzburg pixels = {len(flat):,}  ({flat.nbytes / 1e6:.2f} MB)")
 Map([pixel_layer(slon, slat, labels, palette)])
 ```
@@ -261,24 +266,29 @@ Map([pixel_layer(slon, slat, labels, palette)])
 The k-means above is unsupervised: it finds five groups but does not name them. To put `vegetation` or `water` labels on the output we hand-pick a couple of example pixels per class. First, render the training points on a basemap
 
 ```{python}
-TRAINING = {
-    "water":      [(13.044, 47.800), (13.044, 47.795)],   # Salzach river
-    "vegetation": [(13.058, 47.803), (13.063, 47.825)],   # Kapuzinerberg, northern forest
-    "urban":      [(13.046, 47.813), (13.046, 47.800)],   # Hauptbahnhof, old town
+TRAINING_FC = {
+    "type": "FeatureCollection",
+    "features": [
+        {"type": "Feature", "properties": {"label": "w"}, "geometry": {"type": "Point", "coordinates": [13.0434421, 47.8012641]}},
+        {"type": "Feature", "properties": {"label": "w"}, "geometry": {"type": "Point", "coordinates": [13.0512147, 47.7991568]}},
+        {"type": "Feature", "properties": {"label": "v"}, "geometry": {"type": "Point", "coordinates": [13.058,     47.803    ]}},
+        {"type": "Feature", "properties": {"label": "v"}, "geometry": {"type": "Point", "coordinates": [13.0375756, 47.8000712]}},
+        {"type": "Feature", "properties": {"label": "u"}, "geometry": {"type": "Point", "coordinates": [13.0456493, 47.8110667]}},
+        {"type": "Feature", "properties": {"label": "u"}, "geometry": {"type": "Point", "coordinates": [13.0438297, 47.8058287]}},
+    ],
 }
-classes = list(TRAINING)
-class_colors = np.array(
-    [[0, 130, 200], [60, 180, 75], [230, 25, 75]],   # water, vegetation, urban
-    dtype=np.uint8,
-)
+LABEL = {"w": ("water", blue), "v": ("vegetation", green), "u": ("urban", red)}
+codes = list(LABEL)                                                 # ["w", "v", "u"]
+classes = [name for name, _ in LABEL.values()]                      # ["water", "vegetation", "urban"]
+class_colors = np.array([color for _, color in LABEL.values()], dtype=np.uint8)
 
-train_lon = [lon for pts in TRAINING.values() for lon, _ in pts]
-train_lat = [lat for pts in TRAINING.values() for _, lat in pts]
-train_cls = np.array([j for j, pts in enumerate(TRAINING.values()) for _ in pts])
+train_gdf = gpd.GeoDataFrame.from_features(TRAINING_FC["features"], crs="EPSG:4326")
+train_cls = np.array([codes.index(c) for c in train_gdf.label])
 
 Map([
+    pixel_layer(slon, slat, labels, palette),
     ScatterplotLayer.from_geopandas(
-        gpd.GeoDataFrame(geometry=gpd.points_from_xy(train_lon, train_lat), crs="EPSG:4326"),
+        train_gdf,
         get_fill_color=class_colors[train_cls],
         stroked=True, get_line_color=[0, 0, 0],
         line_width_min_pixels=2, radius_min_pixels=8,
@@ -294,12 +304,11 @@ def emb_at(lon, lat):
     yi = math.floor((lat - y_origin) / dy)
     return emb[-1, :, yi, xi].astype(np.float32)
 
-X = np.array([emb_at(lon, lat) for pts in TRAINING.values() for lon, lat in pts])
-y = np.array([j for j, pts in enumerate(TRAINING.values()) for _ in pts])
-clf = LogisticRegression(max_iter=1000).fit(X, y)
+X = np.array([emb_at(p.x, p.y) for p in train_gdf.geometry])
+clf = LogisticRegression(max_iter=1000).fit(X, train_cls)
 print(
     f"coef = {clf.coef_.shape}  bias = {clf.intercept_.shape}  "
-    f"train acc = {clf.score(X, y):.0%}"
+    f"train acc = {clf.score(X, train_cls):.0%}"
 )
 ```
 
